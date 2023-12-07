@@ -1,3 +1,74 @@
+Changes in 5.4.4
+================
+* NEW plots can use arrow styles that specify "lc rgb variable" 
+* CHANGE make page layout of "set view map; splot" more like that of "plot"
+*        - honor "set rmargin" and "set tmargin" Bug #2484
+*        - display x2label and y2label Bug #2484
+*        - revised placement of color box Bug #2484
+*        - reconcile linked axis data and tic ranges Bug #2483
+*        - apply "set key invert" to splot Bug #2381
+* CHANGE cairo terminals: increase internal oversampling factor Bugs #2499 #2369
+* CHANGE fig: restore terminal option "pointsmax <N>" Bug #2509
+* CHANGE always add a space between items in a "print" command Bug #2488
+* CHANGE consistent ordering of input columns for "plot ... ps var pt var" Bug #2524
+* CHANGE gnuplot -c script.gp A B -C ... will pass A B -C ... without interpretation
+* CHANGE stricter error checks when promoting string to numeric value Bug #2527
+* CHANGE report GPVAL_TERM_XMIN and friends as floating point values
+* FIX handle combination of axis properties logscale + autoscale + reverse Bug #2347
+* FIX mis-handled arguments at start-up of "gnuplot -c script arg1 ..." Bug #2493
+* FIX windows: redirected output of printf() Bug #2490
+* FIX allow variable point style and point type in plot "with yerrorbars"
+* FIX plots "with labels point pt variable" were off-by-one in choosing point type
+* FIX contour "with labels" from binary data
+* FIX x/y fractional coordinate mouse readout for nonlinear axes Bug #2526
+* FIX Support combination of "set surface explicit; set hidden3d" Bug #2521
+
+Changes in 5.4.3
+================
+* NEW "set pm3d border retrace" will use quadrangle color for the border
+* NEW "nogrid" flag for plots to opt out of dgrid3d processing
+* NEW option "above|below y=<val>" for "plot with fillsteps"
+* NEW "set style histogram nokeyseparators" suppress blank key entries Bug #2473
+* CHANGE always allow palette color for non-plot elements of 2D plot
+* FIX contours were incorrectly allocated space in the key even if "notitle"
+* FIX evaluation of unary minus in front of ternary operator Bug #2468
+* FIX arm and s390 require "signed char" Bugs #2467 #2450
+* FIX range errors if "smooth csplines" applied with x-axis reversed Bug #2465
+* FIX handle various corner cases found by fuzzing
+* FIX textcolor should accept "linetype N"  Bug #2459
+* FIX Windows:  handling of Window messages for piped input Bugs #2204 #2412
+* FIX aquaterm: auto-configuration use of Frameworks  Bug #2419
+* FIX qt:       pm3d quadrangle borders for transparent surfaces
+* FIX png/gif:  gdlib auto-configuration issues
+* FIX dumb:     limit enhanced text markup to single-line vertical displacement
+
+Changes in 5.4.2
+================
+* NEW in "using" context, $# means "number of columns in current data line"
+* NEW define on program entry:   I = sqrt(-1) = {0.,1.}
+* NEW support input data that uses epidemiological date-week formats
+* NEW optional fillcolor for "set key opaque"
+* NEW provide and document use of a plugin to provide uigamma function
+* CHANGE much improved domain and precision for igamma function
+* CHANGE generate only one key entry per multi-dataset input file Bug #2380
+* CHANGE (Windows): attempt to convert unicode on command line to UTF-8
+* CHANGE clip `with image` to plot boundary in 2D plots
+* CHANGE In gprintf format "%c", add no space for a null prefix Bug #2266
+* CHANGE Make auto-placement of left border less sensitive to plot size Bug #2415
+* FIX time formats %U %W Bug #2390
+* FIX cairo terminals: Do not lose font info during multi-line enhanced text
+* FIX left-justification of titles in splot with user-specified key position
+* FIX cairo terminals (Windows): ignore "text scaling" from user screen settings
+* FIX win: instabilities associated with changing window size Bug #2301 #2304
+* FIX pm: better mousing and font handling
+* FIX qt: prevent zombie gnuplot_qt process Bug #2188
+* FIX clipping of filled polygons that have only 1 or 2 vertices Bug #2400
+* FIX "set tics front" unexpectedly made all grid lines invisible
+* FIX more terminals support requested linewidth for textbox borders
+* FIX indexing of multiple matrix data sets in a single input file
+* FIX do not inject extra '\n' into input stream after 'set term' Bug #2292
+
+
 Changes in 5.4.1
 ================
 * NEW "with rgbimage" and "with rgbalpha" accept single column ARGB input

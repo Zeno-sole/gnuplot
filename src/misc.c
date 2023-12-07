@@ -63,6 +63,9 @@ int call_argc;
 char *call_args[10] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 static char *argname[] = {"ARG0","ARG1","ARG2","ARG3","ARG4","ARG5","ARG6","ARG7","ARG8","ARG9"};
 
+/* Used to report failure on file open */
+static char *failed_file_name = NULL;
+
 /* Used by postscript terminal if a font file is found by loadpath_fopen() */
 char *loadpath_fontname = NULL;
 
@@ -209,8 +212,10 @@ load_file(FILE *fp, char *name, int calltype)
     if (calltype == 6)
 	datablock_input_line = get_datablock(name);
 
-    if (!fp && !datablock_input_line)
-	int_error(NO_CARET, "Cannot load input from '%s'", name);
+    if (!fp && !datablock_input_line) {
+	failed_file_name = name;
+	int_error(NO_CARET, "Cannot load input from '%s'", failed_file_name);
+    }
 
     /* Provide a user-visible copy of the current line number in the input file */
     gpval_lineno = add_udv_by_name("GPVAL_LINENO");
@@ -475,7 +480,14 @@ lf_push(FILE *fp, char *name, char *cmdline)
 	lf->argv[0].v.int_val = 0;
 	lf->argv[0].type = NOTDEFINED;
 	if ((udv = get_udv_by_name("ARGV")) && udv->udv_value.type == ARRAY) {
+	    /* When called from the command line (-c option) call_argc correctly
+	     * enumerates the entities on the command line, but they were not
+	     * previously saved in ARGV.
+	     */
+	    int saved_args = udv->udv_value.v.value_array[0].v.int_val;
 	    for (argindex = 0; argindex <= call_argc; argindex++) {
+		if (argindex > saved_args)
+		    break;
 		lf->argv[argindex] = udv->udv_value.v.value_array[argindex];
 		if (lf->argv[argindex].type == STRING)
 		    lf->argv[argindex].v.string_val =
@@ -515,6 +527,8 @@ load_file_error()
 {
     /* clean up from error in load_file */
     /* pop off everything on stack */
+    free(failed_file_name);
+    failed_file_name = NULL;
     while (lf_pop());
 }
 
@@ -1185,8 +1199,7 @@ parse_fillstyle(struct fill_style_type *fs)
 			fs->fillpattern = int_expression();
 			if (fs->fillpattern < 0)
 			    fs->fillpattern = 0;
-		    } else
-			int_error(c_token, "this fill style does not have a parameter");
+		    }
 		}
 		continue;
 	}
@@ -1257,7 +1270,7 @@ parse_colorspec(struct t_colorspec *tc, int options)
 	c_token++;
 	tc->type = TC_LT;
 	tc->lt = LT_BLACK;
-    } else if (equals(c_token,"lt")) {
+    } else if (equals(c_token,"lt") || almost_equals(c_token, "linet$ype")) {
 	struct lp_style_type lptemp;
 	c_token++;
 	if (END_OF_COMMAND)

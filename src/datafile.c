@@ -226,6 +226,7 @@ static int df_lower_index = 0;  /* first mesh required */
 static int df_upper_index = MAXINT;
 static int df_index_step = 1;   /* 'every' for indices */
 static int df_current_index;    /* current mesh */
+static int df_last_index_read;  /* last mesh we actually read data from */
 
 /* stuff for named index support */
 static char *indexname = NULL;
@@ -660,7 +661,6 @@ df_fgets( FILE *fin )
 
 /*}}} */
 
-/*{{{  static int df_tokenise(s) */
 static int
 df_tokenise(char *s)
 {
@@ -848,7 +848,6 @@ df_tokenise(char *s)
     return df_no_cols;
 }
 
-/*}}} */
 
 /*{{{  static float *df_read_matrix() */
 /* Reads a matrix from a text file and stores it as floats in allocated
@@ -891,18 +890,50 @@ df_read_matrix(int *rows, int *cols)
 		if (*s && !strncmp(s, indexname, strlen(indexname)))
 		    index_found = TRUE;
 	    }
-	    if (linearized_matrix)
-		return linearized_matrix;
-	    else
+
+	    /* This whole section copied with minor tweaks from df_readascii() */
+	    if (++blank_count == 1) {
+		/* first blank line */
+		if (linearized_matrix)
+		    return linearized_matrix;
+		if (indexname && !index_found)
+		    continue;
+		if (df_current_index < df_lower_index)
+		    continue;
+	    }
+	    if (blank_count == 2) {
+		/* just reached the end of a data block */
+		++df_current_index;
+		if (indexname && index_found) {
+		    df_eof = 1;
+		    return linearized_matrix;
+		}
+		if (df_current_index <= df_lower_index)
+		    continue;
+		if (df_current_index > df_upper_index) {
+		    df_eof = 1;
+		    return linearized_matrix;
+		}
+	    } else {
+		/* Ignore any blank lines beyond the 2nd */
 		continue;
+	    }
 	}
+
+	/* get here => was not blank */
+	df_last_index_read = df_current_index;
+
+	/* TODO:  Handle columnheaders for 2nd and subsequent data blocks?
+	 * if (blank_count >= 2) { do something }
+	 */
+
+	blank_count = 0;
 
 	if (mixed_data_fp && is_EOF(*s)) {
 	    df_eof = 1;
 	    return linearized_matrix;
 	}
 	c = df_tokenise(s);
-
 	if (!c)
 	    return linearized_matrix;
 
@@ -1069,6 +1100,7 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
     indexname = NULL;
 
     df_current_index = 0;
+    df_last_index_read = 0;
     blank_count = 2;
     /* by initialising blank_count, leading blanks will be ignored */
 
@@ -1133,6 +1165,8 @@ df_open(const char *cmd_filename, int max_using, struct curve_points *plot)
 
 	/* look for binary / matrix */
 	if (almost_equals(c_token, "bin$ary")) {
+	    if (df_filename[0] == '@')
+		int_error(c_token, "an array is not a binary file");
 	    if (df_filename[0] == '$')
 		int_error(c_token, "data blocks cannot be binary");
 	    if (!strcmp(df_filename,"+") || !strcmp(df_filename,"++"))
@@ -1683,9 +1717,7 @@ plot_option_using(int max_using)
 	    } else {
 		int col = int_expression();
 
-		if (col == -3)	/* pseudocolumn -3 means "last column" */
-		    fast_columns = 0;
-		else if (col < -2)
+		if (col < -2)
 		    int_error(c_token, "Column must be >= -2");
 
 		use_spec[df_no_use_specs++].column = col;
@@ -1910,6 +1942,7 @@ df_readascii(double v[], int max)
 	/*}}} */
 
 	/* get here => was not blank */
+	df_last_index_read = df_current_index;
 
 	blank_count = 0;
 
@@ -2012,8 +2045,6 @@ df_readascii(double v[], int max)
 	    /* Restrict the column number to possible values */
 	    if (column_for_key_title > df_no_cols)
 		column_for_key_title = df_no_cols;
-	    if (column_for_key_title == -3)	/* last column in file */
-		column_for_key_title = df_no_cols;
 
 	    if (column_for_key_title > 0) {
 		df_key_title = gp_strdup(df_column[column_for_key_title-1].header);
@@ -2055,9 +2086,6 @@ df_readascii(double v[], int max)
 	    for (output = 0; output < limit; ++output) {
 		/* if there was no using spec, column is output+1 and at=NULL */
 		int column = use_spec[output].column;
-
-		if (column == -3) /* pseudocolumn -3 means "last column" */
-		    column = use_spec[output].column = df_no_cols;
 
 		/* Handle cases where column holds a meta-data string */
 		/* Axis labels, plot titles, etc.                     */
@@ -2630,13 +2658,13 @@ f_column(union argument *arg)
 	column = (int) real(&a);
 
     if (column == -2)
-	push(Ginteger(&a, df_current_index));
+	push(Ginteger(&a, df_last_index_read));
     else if (column == -1)
 	push(Ginteger(&a, line_count));
     else if (column == 0)       /* $0 = df_datum */
 	push(Gcomplex(&a, (double) df_datum, 0.0));
-    else if (column == -3)	/* pseudocolumn -3 means "last column" */
-	push(Gcomplex(&a, df_column[df_no_cols - 1].datum, 0.0));
+    else if (column == DOLLAR_NCOLUMNS)	/* $# returns actual number of columns in this line */
+	push(Gcomplex(&a, (double)df_no_cols, 0.0));
     else if (column < 1 || column > df_no_cols) {
 	undefined = TRUE;
 	/* Nov 2014: This is needed in case the value is referenced */
@@ -2703,9 +2731,6 @@ f_stringcolumn(union argument *arg)
 	gpfree_string(&a);
     } else
 	column = (int) real(&a);
-
-    if (column == -3)	/* pseudocolumn -3 means "last column" */
-	column = df_no_cols;
 
     if (column == -2)	/* pseudocolumn -2 means "index" */ {
 	push(Gstring(&a, indexname));
@@ -2991,11 +3016,12 @@ df_set_key_title(struct curve_points *plot)
     if (plot->title_is_suppressed)
 	return;
 
-    /* Note: I think we can only get here for histogram labels */
-    free(plot->title);
-    plot->title = df_key_title;
-    df_key_title = NULL;
-    plot->title_no_enhanced = !keyT.enhanced;
+    /* Do not replace a title that was explicitly given in the plot command */
+    if (plot->title == NULL) {
+	plot->title = df_key_title;
+	df_key_title = NULL;
+	plot->title_no_enhanced = !keyT.enhanced;
+    }
 }
 
 /*
@@ -3389,7 +3415,7 @@ df_bin_default_columns default_style_cols[] = {
     {XYERRORLINES, 3, 1},
     {FILLEDCURVES, 1, 1},
     {PM3DSURFACE, 1, 2},
-    {LABELPOINTS, 2, 1},
+    {LABELPOINTS, 1, 1},
     {HISTOGRAMS, 1, 0},
     {IMAGE, 1, 2},
     {RGBIMAGE, 3, 2},
@@ -4948,6 +4974,7 @@ df_readbinary(double v[], int max)
 	point_count = -1;
 	line_count = 0;
 	df_current_index = df_bin_record_count;
+	df_last_index_read = df_current_index;
 
 	/* Craig DeForest Feb 2013 - Fast version of uniform binary matrix.
 	 * Don't apply this to ascii input or special filetypes.
@@ -4982,8 +5009,9 @@ df_readbinary(double v[], int max)
 	    this_record->memory_data = memory_data;
 
 	    FPRINTF((stderr,"Fast matrix code:\n"));
-	    FPRINTF((stderr,"\t\t skip %d bytes, read %ld bytes as %d x %d array\n",
-		    record_skip, bytes_total, scan_size[0], scan_size[1]));
+	    FPRINTF((stderr,"\t\t %d binary columns\n", df_no_bin_cols));
+	    FPRINTF((stderr,"\t\t skip %ld bytes, read %ld bytes per point %ld total as %d x %d array\n",
+		    record_skip, bytes_per_point, bytes_total, scan_size[0], scan_size[1]));
 
 	    /* Do the actual slurping */
 	    fread_ret = fread(memory_data, 1, bytes_total, data_fp);

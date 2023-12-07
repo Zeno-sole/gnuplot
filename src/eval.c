@@ -54,6 +54,7 @@ static RETSIGTYPE fpe(int an_int);
 
 /* Global variables exported by this module */
 struct udvt_entry udv_pi = { NULL, "pi", {INTGR, {0} } };
+struct udvt_entry *udv_I;
 struct udvt_entry *udv_NaN;
 /* first in linked list */
 struct udvt_entry *first_udv = &udv_pi;
@@ -95,6 +96,7 @@ const struct ft_entry ft[] =
     {"lnot",  f_lnot},
     {"bnot",  f_bnot},
     {"uminus",  f_uminus},
+    {"nop",  f_nop},
     {"lor",  f_lor},
     {"land",  f_land},
     {"bor",  f_bor},
@@ -208,14 +210,17 @@ const struct ft_entry ft[] =
     {"faddeeva", f_faddeeva},	/* Faddeeva rescaled complex error function "w_of_z" */
 #endif
 
-    {"tm_sec",  f_tmsec},	/* for timeseries */
-    {"tm_min",  f_tmmin},	/* for timeseries */
-    {"tm_hour",  f_tmhour},	/* for timeseries */
-    {"tm_mday",  f_tmmday},	/* for timeseries */
-    {"tm_mon",  f_tmmon},	/* for timeseries */
-    {"tm_year",  f_tmyear},	/* for timeseries */
-    {"tm_wday",  f_tmwday},	/* for timeseries */
-    {"tm_yday",  f_tmyday},	/* for timeseries */
+    {"tm_sec",  f_tmsec},	/* time function */
+    {"tm_min",  f_tmmin},	/* time function */
+    {"tm_hour", f_tmhour},	/* time function */
+    {"tm_mday", f_tmmday},	/* time function */
+    {"tm_mon",  f_tmmon},	/* time function */
+    {"tm_year", f_tmyear},	/* time function */
+    {"tm_wday", f_tmwday},	/* time function */
+    {"tm_yday", f_tmyday},	/* time function */
+    {"tm_week", f_tmweek},	/* time function */
+    {"weekdate_iso", f_weekdate_iso},
+    {"weekdate_cdc", f_weekdate_cdc},
 
     {"sprintf",  f_sprintf},	/* for string variables only */
     {"gprintf",  f_gprintf},	/* for string variables only */
@@ -278,7 +283,7 @@ real(struct value *val)
 	return ((double) val->v.int_val);
     case CMPLX:
 	return (val->v.cmplx_val.real);
-    case STRING:              /* is this ever used? */
+    case STRING:    /* FIXME is this ever used? */
 	return (atof(val->v.string_val));
     case NOTDEFINED:
 	return not_a_number();
@@ -500,35 +505,44 @@ pop(struct value *x)
 /*
  * Allow autoconversion of string variables to floats if they
  * are dereferenced in a numeric context.
+ * Jun 2022: Stricter error checking for non-numeric string.
  */
 struct value *
 pop_or_convert_from_string(struct value *v)
 {
-    (void) pop(v);
+    pop(v);
 
     /* FIXME: Test for INVALID_VALUE? Other corner cases? */
     if (v->type == INVALID_NAME)
 	int_error(NO_CARET, "invalid dummy variable name");
 
     if (v->type == STRING) {
-	char *eov;
+	char *string = v->v.string_val;
+	char *eov = string;
+	char trailing = *eov;
 
-	if (*(v->v.string_val)
-	&&  strspn(v->v.string_val,"0123456789 ") == strlen(v->v.string_val)) {
-	    long long li = atoll(v->v.string_val);
-	    gpfree_string(v);
+	/* If the string contains no decimal point, try to interpret it as an integer.
+	 * strtoll handles decimal, octal, and hexadecimal.
+	 */
+	if (strcspn(string, ".") == strlen(string)) {
+	    long long li = strtoll( string, &eov, 0 );
+	    trailing = *eov;
 	    Ginteger(v, li);
-	} else {
-	    double d = strtod(v->v.string_val,&eov);
-	    if (v->v.string_val == eov) {
-		gpfree_string(v);
-		int_error(NO_CARET,"Non-numeric string found where a numeric expression was expected");
-		/* Note: This also catches syntax errors like "set term ''*0 " */
-	    }
-	    gpfree_string(v);
-	    Gcomplex(v, d, 0.);
-	    FPRINTF((stderr,"converted string to CMPLX value %g\n",real(v)));
 	}
+	/* Successful interpretation as an integer leaves (eov != string).
+	 * Otherwise try again as a floating point, including oddball cases like
+	 * "NaN" or "-Inf" that contain no decimal point.
+	 */
+	if (eov == string) {
+	    double d = strtod(string, &eov);
+	    trailing = *eov;
+	    Gcomplex(v, d, 0.);
+	}
+	free(string);	/* NB: invalidates dereference of eov */
+	if (eov == string)
+	    int_error(NO_CARET,"Non-numeric string found where a numeric expression was expected");
+	if (trailing && !isspace(trailing))
+	    int_error(NO_CARET,"Trailing characters after numeric expression");
     }
     return(v);
 }
@@ -662,6 +676,7 @@ evaluate_at(struct at_type *at_ptr, struct value *val_ptr)
      * so that the value on return reflects what really happened.
      */
     undefined = FALSE;
+    val_ptr->type = NOTDEFINED;
 
     errno = 0;
     reset_stack();
@@ -896,10 +911,10 @@ fill_gpval_complex(char *var, double areal, double aimag)
 static void
 update_plot_bounds(void)
 {
-    fill_gpval_integer("GPVAL_TERM_XMIN", axis_array[FIRST_X_AXIS].term_lower / term->tscale);
-    fill_gpval_integer("GPVAL_TERM_XMAX", axis_array[FIRST_X_AXIS].term_upper / term->tscale);
-    fill_gpval_integer("GPVAL_TERM_YMIN", axis_array[FIRST_Y_AXIS].term_lower / term->tscale);
-    fill_gpval_integer("GPVAL_TERM_YMAX", axis_array[FIRST_Y_AXIS].term_upper / term->tscale);
+    fill_gpval_float("GPVAL_TERM_XMIN", (double)axis_array[FIRST_X_AXIS].term_lower / term->tscale);
+    fill_gpval_float("GPVAL_TERM_XMAX", (double)axis_array[FIRST_X_AXIS].term_upper / term->tscale);
+    fill_gpval_float("GPVAL_TERM_YMIN", (double)axis_array[FIRST_Y_AXIS].term_lower / term->tscale);
+    fill_gpval_float("GPVAL_TERM_YMAX", (double)axis_array[FIRST_Y_AXIS].term_upper / term->tscale);
     fill_gpval_integer("GPVAL_TERM_XSIZE", canvas.xright+1);
     fill_gpval_integer("GPVAL_TERM_YSIZE", canvas.ytop+1);
     fill_gpval_integer("GPVAL_TERM_SCALE", term->tscale);

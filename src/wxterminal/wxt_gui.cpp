@@ -90,6 +90,8 @@
 
 
 /* define DEBUG here to have debugging messages in stderr */
+/* #define DEBUG */
+
 #include "wxt_gui.h"
 
 /* frame icon composed of three icons of different resolutions */
@@ -876,8 +878,10 @@ void wxtFrame::OnSize( wxSizeEvent& event )
 	PositionStatusBar();
 #endif
 
-	/* Note: On some platforms OnSize() might get called before the settings have been initialized in wxt_init(). */
-	if (wxt_redraw == yes)
+	/* Note: On some platforms OnSize() might get called before
+	 * settings have been initialized in wxt_init().
+	 */
+	if (wxt_redraw == yes && term_initialised)
 		wxt_exec_event(GE_replot, 0, 0, 0 , 0, this->GetId());
 }
 
@@ -1068,14 +1072,14 @@ void wxtPanel::DrawToDC(wxDC &dc, wxRegion &region)
 	/* fill in gray when the aspect ratio conservation has let empty space in the panel */
 	if (plot.device_xmax*plot.ymax > plot.device_ymax*plot.xmax) {
 		dc.SetPen( *wxTRANSPARENT_PEN );
-		dc.SetBrush( wxBrush( wxT("LIGHT GREY"), wxSOLID ) );
+		dc.SetBrush( wxBrush( wxT("LIGHT GREY"), wxBRUSHSTYLE_SOLID ) );
 		dc.DrawRectangle((int) (plot.xmax/plot.oversampling_scale*plot.xscale),
 				0,
 				plot.device_xmax - (int) (plot.xmax/plot.oversampling_scale*plot.xscale),
 				plot.device_ymax);
 	} else if (plot.device_xmax*plot.ymax < plot.device_ymax*plot.xmax) {
 		dc.SetPen( *wxTRANSPARENT_PEN );
-		dc.SetBrush( wxBrush( wxT("LIGHT GREY"), wxSOLID ) );
+		dc.SetBrush( wxBrush( wxT("LIGHT GREY"), wxBRUSHSTYLE_SOLID ) );
 		dc.DrawRectangle(0,
 				(int) (plot.ymax/plot.oversampling_scale*plot.yscale),
 				plot.device_xmax,
@@ -1084,21 +1088,17 @@ void wxtPanel::DrawToDC(wxDC &dc, wxRegion &region)
 
 #ifdef USE_MOUSE
 	if (wxt_zoombox) {
-		tmp_pen = wxPen(wxT("black"), 1, wxSOLID);
+		tmp_pen = wxPen( wxt_dark_background ? wxT("white") : wxT("black") );
+
 		tmp_pen.SetCap( wxCAP_ROUND );
 		dc.SetPen( tmp_pen );
-#ifndef __WXOSX_COCOA__
-		/* wx 2.9 Cocoa bug workaround, which has no logical functions support */
-#if (GTK_MAJOR_VERSION < 3)
-		dc.SetLogicalFunction( wxINVERT );
-#endif
-#endif
+
 		dc.DrawLine( zoom_x1, zoom_y1, mouse_x, zoom_y1 );
 		dc.DrawLine( mouse_x, zoom_y1, mouse_x, mouse_y );
 		dc.DrawLine( mouse_x, mouse_y, zoom_x1, mouse_y );
 		dc.DrawLine( zoom_x1, mouse_y, zoom_x1, zoom_y1 );
 		dc.SetPen( *wxTRANSPARENT_PEN );
-		dc.SetBrush( wxBrush( wxT("LIGHT BLUE"), wxSOLID ) );
+		dc.SetBrush( wxBrush( wxT("LIGHT BLUE"), wxBRUSHSTYLE_SOLID ) );
 		dc.SetLogicalFunction( wxAND );
 		dc.DrawRectangle( zoom_x1, zoom_y1, mouse_x -zoom_x1, mouse_y -zoom_y1);
 		dc.SetLogicalFunction( wxCOPY );
@@ -1123,15 +1123,9 @@ void wxtPanel::DrawToDC(wxDC &dc, wxRegion &region)
 	}
 
 	if (wxt_ruler) {
-		tmp_pen = wxPen(wxT("black"), 1, wxSOLID);
+		tmp_pen = wxPen( wxt_dark_background ? wxT("white") : wxT("black") );
 		tmp_pen.SetCap(wxCAP_BUTT);
 		dc.SetPen( tmp_pen );
-#ifndef __WXOSX_COCOA__
-		/* wx 2.9 Cocoa bug workaround, which has no logical functions support */
-#if (GTK_MAJOR_VERSION < 3)
-		dc.SetLogicalFunction( wxINVERT );
-#endif
-#endif
 #ifdef __WXMSW__
 		dc.DrawLine(0, (int)wxt_ruler_y, plot.device_xmax, (int)wxt_ruler_y);
 		dc.DrawLine((int)wxt_ruler_x, 0, (int)wxt_ruler_x, plot.device_ymax);
@@ -1142,15 +1136,9 @@ void wxtPanel::DrawToDC(wxDC &dc, wxRegion &region)
 	}
 
 	if (wxt_ruler && wxt_ruler_lineto) {
-		tmp_pen = wxPen(wxT("black"), 1, wxSOLID);
+		tmp_pen = wxPen( wxt_dark_background ? wxT("white") : wxT("black") );
 		tmp_pen.SetCap(wxCAP_BUTT);
 		dc.SetPen( tmp_pen );
-#ifndef __WXOSX_COCOA__
-		/* wx 2.9 Cocoa bug workaround, which has no logical functions support */
-#if (GTK_MAJOR_VERSION < 3)
-		dc.SetLogicalFunction( wxINVERT );
-#endif
-#endif
 		dc.DrawLine((int)wxt_ruler_x, (int)wxt_ruler_y, mouse_x, mouse_y);
 		dc.SetLogicalFunction( wxCOPY );
 	}
@@ -2178,6 +2166,12 @@ void wxt_graphics()
 	/* set the transformation matrix of the context, and other details */
 	/* depends on plot->xscale and plot->yscale */
 	gp_cairo_initialize_context(wxt_current_plot);
+
+#ifdef _WIN32
+	/* On Windows, we set the resolution to the screen resolution, i.e. taking
+	   the "text scaling" factor into account. */
+	gp_cairo_set_resolution(GetDPI());
+#endif
 
 	/* set or refresh terminal size according to the window size */
 	/* oversampling_scale is updated in gp_cairo_initialize_context */

@@ -131,6 +131,7 @@ init_voxelsupport()
      */
     udv_VoxelDistance = add_udv_by_name("VoxelDistance");
     udv_VoxelDistance->udv_value.type = CMPLX;
+    Gcomplex(&udv_VoxelDistance->udv_value, 0.0, 0.0);
 
     /* default state of other voxel-related structures */
     isosurface_options.inside_offset = 1;	/* inside color = outside + 1 */
@@ -596,6 +597,8 @@ f_voxel(union argument *arg)
 void
 vfill_command()
 {
+    if (!current_vgrid)
+	int_error(c_token, "No current voxel grid");
     c_token++;
     vfill(current_vgrid->vdata);
 }

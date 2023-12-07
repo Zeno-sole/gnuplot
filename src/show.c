@@ -1948,8 +1948,12 @@ show_key()
     } else
 	fprintf(stderr, "not boxed\n");
 
-    if (key->front)
-	fprintf(stderr, "\tkey box is opaque and drawn in front of the graph\n");
+    if (key->front) {
+	fprintf(stderr, "\tkey box is opaque");
+	if (key->fillcolor.lt != LT_BACKGROUND)
+	    save_pm3dcolor(stderr, &key->fillcolor);
+	fprintf(stderr," \n");
+    }
 
     fprintf(stderr, "\
 \tsample length is %g characters\n\
@@ -2524,7 +2528,8 @@ show_pm3d()
     if (pm3d.border.l_type == LT_NODRAW) {
 	fprintf(stderr,"\tpm3d quadrangles will have no border\n");
     } else {
-	fprintf(stderr,"\tpm3d quadrangle borders will default to ");
+	fprintf(stderr,"\tpm3d quadrangle borders will be %s with",
+		pm3d.border.l_type == LT_DEFAULT ? "retraced" : "drawn");
 	save_linetype(stderr, &(pm3d.border), FALSE);
 	fprintf(stderr,"\n");
     }
@@ -2793,8 +2798,11 @@ static void
 show_surface()
 {
     SHOW_ALL_NL;
-    fprintf(stderr, "\tsurface is %sdrawn %s\n",
-	draw_surface ? "" : "not ", implicit_surface ? "" : "only if explicitly requested");
+    if (!draw_surface)
+	fprintf(stderr, "\tsurface is not drawn\n");
+    else
+	fprintf(stderr, "\tsurface is drawn %s\n",
+	    implicit_surface ? "" : "only if explicitly requested");
 }
 
 

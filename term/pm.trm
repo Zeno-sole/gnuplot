@@ -3,7 +3,7 @@
 /* GNUPLOT - pm.trm */
 
 /*[
- * Copyright 1992, 1993, 1998, 2004
+ * Copyright 1992, 1993, 1998, 2004, 2019, 2021
  *
  * Permission to use, copy, and distribute this software and its
  * documentation for any purpose with or without fee is hereby granted,
@@ -67,6 +67,7 @@ TERM_PUBLIC void PM_put_text(unsigned int x, unsigned int y, const char *str);
 TERM_PUBLIC int PM_justify_text(enum JUSTIFY mode);
 TERM_PUBLIC int PM_set_font(const char *font);
 TERM_PUBLIC void PM_point(unsigned int x, unsigned int y, int number);
+TERM_PUBLIC void PM_pointsize(double size);
 TERM_PUBLIC void PM_fillbox(int style, unsigned int x, unsigned int y, unsigned int w, unsigned int h);
 TERM_PUBLIC void PM_linewidth(double linewidth);
 #ifdef USE_MOUSE
@@ -123,12 +124,16 @@ static int PM_termmode = 0;
 static TBOOLEAN PM_must_reset_opts = FALSE;
 static TBOOLEAN PM_must_abort = FALSE;
 
+/* terminal options */
 static TBOOLEAN PM_widelines = FALSE;
 static TBOOLEAN PM_persist = FALSE;
 static TBOOLEAN PM_enhanced = TRUE;
 static int PM_plot_number = 0;
 static char PM_term_title[128] = "";
 static char PM_def_font[128] = "";
+static double PM_linewidth_scale = 1.; /* scale factor for linewidth */
+static double PM_fontscale = 1.;
+static double PM_pointscale = 1.;
 
 static char PM_opts[256] = "";
 static TBOOLEAN PM_optargs = FALSE;
@@ -138,13 +143,16 @@ static int mouseGnupmdrv = 0; /* PM set to 1 if we are connected to a mouseable 
 static FILE *PM_pipe = NULL;
 static FILE *PM_savepipe = NULL;
 
+/* characteristics of the default font */
+static int PM_def_hchar;
+static int PM_def_vchar;
 
 #ifndef PM_OLD_ENHANCED_TEXT
 
 /* track current state of pm terminal */
 /* this is only needed for enhanced text */
-static char * PM_font = NULL;
-static double PM_fontsize = 12.0;
+static char PM_font[FACESIZE] = "";
+static unsigned int PM_fontsize = 12;
 static unsigned int PM_x = 0;
 static unsigned int PM_y = 0;
 static enum JUSTIFY PM_justification = LEFT;
@@ -163,7 +171,7 @@ static double ENHpm_base;
 static void PM_reset_opts(void);
 static void PM_query(void);
 static void PM_make_servername(char *);
-static void PM_abortplot();
+static void PM_abortplot(void);
 static void PM_query_font(void);
 
 
@@ -264,17 +272,20 @@ PM_init()
 	pid = pib->pib_ulpid;
 	fwrite(&pid, 1, 4, PM_pipe);
 	fflush(PM_pipe);
+	PM_reset_opts();
     } else {
 	if (PM_must_reset_opts)
 	    PM_reset_opts();
     }
 #ifdef USE_MOUSE
     /* PM: notify gnupmdrv that this is mouse-enhanced terminal */
-    putc( GR_MOUSECAPABLE, PM_pipe ) ;
-    fflush( PM_pipe ) ;
+    putc(GR_MOUSECAPABLE, PM_pipe);
+    fflush(PM_pipe);
     /* we catch mouseable gnupmdrv's answer in PM_query by 0xABCD */
 #endif
     PM_query();
+    PM_def_hchar = term->h_char;
+    PM_def_vchar = term->v_char;
 }
 
 
@@ -298,6 +309,7 @@ PM_make_servername(char *str)
 
 enum PM_id { PM_DEFAULT,
 	     PM_TITLE, PM_FONT,
+	     PM_LINEWIDTH, PM_POINTSCALE, PM_FONTSCALE,
 	     PM_SERVER, PM_NOSERVER,
 	     PM_PERSIST, PM_NOPERSIST,
 	     PM_WIDELINES, PM_NOWIDELINES,
@@ -317,6 +329,12 @@ static struct gen_table PM_opt_table[] =
     { "noe$nhanced", PM_NOENHANCED },
     { "ti$tle", PM_TITLE },
     { "font", PM_FONT },
+    { "linew$idth", PM_LINEWIDTH },
+    { "lw", PM_LINEWIDTH },
+    { "fonts$cale", PM_FONTSCALE },
+    { "fs", PM_FONTSCALE },
+    { "pointscale", PM_POINTSCALE },
+    { "ps", PM_POINTSCALE },
     { NULL, PM_OTHER }
 };
 
@@ -363,6 +381,21 @@ PM_options()
 	    c_token++;
 	    PM_widelines = FALSE;
 	    break;
+	case PM_LINEWIDTH:
+	    c_token++;
+	    PM_linewidth_scale = real_expression();
+	    if (PM_linewidth_scale <= 0) PM_linewidth_scale = 1.;
+	    break;
+	case PM_FONTSCALE:
+	    c_token++;
+	    PM_fontscale = real_expression();
+	    if (PM_fontscale <= 0) PM_fontscale = 1.;
+	    break;
+	case PM_POINTSCALE:
+	    c_token++;
+	    PM_pointscale = real_expression();
+	    if (PM_pointscale <= 0) PM_pointscale = 1.;
+	    break;
 	case PM_ENHANCED:
 	    c_token++;
 	    PM_enhanced = TRUE;
@@ -394,7 +427,7 @@ PM_options()
 	    s = try_to_get_string();
 	    if (s == NULL)
 		int_error(c_token, "expecting string argument");
-	    strlcpy(PM_term_title, s, sizeof(PM_term_title));
+	    safe_strncpy(PM_term_title, s, sizeof(PM_term_title));
 	    free(s);
 	    break;
 	default:
@@ -404,7 +437,7 @@ PM_options()
 		int_error(c_token, "Unknown terminal option");
 		PM_term_title[0] = NUL;
 	    } else {
-		strlcpy(PM_term_title, s, sizeof(PM_term_title));
+		safe_strncpy(PM_term_title, s, sizeof(PM_term_title));
 		free(s);
 	    }
 	    break;
@@ -451,10 +484,16 @@ PM_options()
 	PM_widelines? "" : "no",
 	PM_persist  ? "" : "no",
 	PM_enhanced ? "" : "no");
+    if (PM_def_font[0] != NUL)
+	sprintf(term_options + strlen(term_options), " font \"%s\"", PM_def_font);
+    if (PM_linewidth_scale != 1.)
+	sprintf(term_options + strlen(term_options), " linewidth %.1f", PM_linewidth_scale);
+    if (PM_pointscale != 1.)
+	sprintf(term_options + strlen(term_options), " pointscale %.1f", PM_pointscale);
+    if (PM_fontscale != 1.)
+	sprintf(term_options + strlen(term_options), " fontscale %.1f", PM_fontscale);
     if (PM_plot_number > 0)
 	sprintf(term_options + strlen(term_options), " server %d", PM_plot_number);
-    if (PM_def_font[0] != NUL)
-	sprintf(term_options + strlen(term_options), " font  %s", PM_def_font);
     if (PM_term_title[0])
 	sprintf(term_options + strlen(term_options), " title \"%s\"", PM_term_title);
 
@@ -470,7 +509,7 @@ PM_reset_opts()
     len = strlen(PM_opts) + 1;
     fwrite(&len, sizeof(int), 1, PM_pipe);
     fwrite(PM_opts, 1, len, PM_pipe);
-    for (len = sizeof(int) - len % sizeof(int); len > 0; len--) {
+    for (len = (sizeof(int) - len % sizeof(int)) % sizeof(int); len > 0; len--) {
 	/* pad rest of int with zeros */
 	putc(NUL, PM_pipe);
     }
@@ -550,20 +589,9 @@ PM_text()
     if (PM_mode != SET_TEXT) {
 	putc(SET_TEXT, PM_pipe);
 	fflush(PM_pipe);
-#if 0
-        keep_term_initialised = term_initialised ;
-        term_initialised = FALSE ; /* need to force init */
-#endif
     }
-
     PM_mode = SET_TEXT;
-#ifdef USE_MOUSE
-    {
-	/* FIXME 20040712: 'extern' in a source file is always wrong. */
-	extern TBOOLEAN allowmotion;
-	allowmotion = TRUE;
-    }
-#endif
+    exec_event(GE_plotdone, 0, 0, 0, 0, 0);
 }
 
 
@@ -576,6 +604,13 @@ PM_graphics()
 #ifdef USE_MOUSE
     PM_update_menu_items();
 #endif
+    {
+	unsigned int fontscale = PM_fontscale * 100;
+	putc(SET_SPECIAL, PM_pipe);
+	putc(SET_SPECIAL_FONTSCALE, PM_pipe); /* set fontscale */
+	fwrite(&fontscale, sizeof(int), 1, PM_pipe);
+	fflush(PM_pipe);
+    }
     if (encoding != last_encoding) {
 	int cp;
 	/* A complete list of codepages can be found at
@@ -601,26 +636,32 @@ PM_graphics()
 	                          cp = 0; break;
 	};
 	putc(SET_SPECIAL, PM_pipe);
-	putc(SET_SPECIAL_CODEPAGE, PM_pipe); /*  set codepage */
+	putc(SET_SPECIAL_CODEPAGE, PM_pipe); /* set codepage */
 	fwrite(&cp, sizeof(int), 1, PM_pipe);
 	fflush(PM_pipe);
 	last_encoding = encoding;
     }
-    if (PM_def_font[0] != NUL) {
+    { /* update the default font */
 	int len;
 
-	fprintf(stderr, "Setting default font: %s\n", PM_def_font);
 	putc(SET_SPECIAL, PM_pipe);
-	putc(SET_SPECIAL_FONT, PM_pipe); /*  set default font */
+	putc(SET_SPECIAL_FONT, PM_pipe); /* set default font */
 	len = strlen(PM_def_font) + 1;
 	fwrite(&len, sizeof(int), 1, PM_pipe);
 	fwrite(PM_def_font, 1, len, PM_pipe);
-	for (len = sizeof(int) - len % sizeof(int); len > 0; len--) {
+	for (len = (sizeof(int) - len % sizeof(int)) % sizeof(int); len > 0; len--) {
 	    /* pad rest of int with zeros */
 	    putc(NUL, PM_pipe);
 	}
     }
+#ifdef USE_MOUSE
+    /* PM: notify gnupmdrv that this is mouse-enhanced terminal */
+    putc(GR_MOUSECAPABLE, PM_pipe);
+    fflush(PM_pipe);
+#endif
     PM_query();
+    PM_def_hchar = term->h_char;
+    PM_def_vchar = term->v_char;
     PM_mode = SET_GRAPHICS;
 }
 
@@ -707,7 +748,7 @@ PM_put_text(unsigned int x, unsigned int y, const char *str)
     len = strlen(str) + 1;
     fwrite(&len, sizeof(int), 1, PM_pipe);
     fwrite(str, 1, len, PM_pipe);
-    for (len = sizeof(int) - len % sizeof(int); len > 0; len--) {
+    for (len = (sizeof(int) - len % sizeof(int)) % sizeof(int); len > 0; len--) {
 	/* pad rest of int with zeros */
 	putc(NUL, PM_pipe);
     }
@@ -757,8 +798,6 @@ PM_set_font(const char *ifont)
     unsigned int len;
 
     putc(SET_FONT, PM_pipe);
-    if ((font == NULL) && (PM_def_font[0] != NUL))
-	font = PM_def_font;
     len = (font == NULL) ? 0 : strlen(font);
     if (len == 0) {
 	fwrite(&len, sizeof(int), 1, PM_pipe);
@@ -766,10 +805,17 @@ PM_set_font(const char *ifont)
 	len += 1;
 	fwrite(&len, sizeof(int), 1, PM_pipe);
 	fwrite(font, 1, len, PM_pipe);
-	for (len = sizeof(int) - len % sizeof(int); len > 0; len--) {
+	for (len = (sizeof(int) - len % sizeof(int)) % sizeof(int); len > 0; len--) {
 	    /* pad rest of int with zeros */
 	    putc(NUL, PM_pipe);
 	}
+    }
+    // update hchar/vchar
+    if (len == 0) {
+	term->h_char = PM_def_hchar;
+	term->v_char = PM_def_vchar;
+    } else {
+	PM_query();
     }
     return TRUE;
 }
@@ -784,22 +830,24 @@ PM_set_font(const char *ifont)
 static void
 PM_query_font(void)
 {
-    unsigned int len, fontsize;
-    char *newfont;
+    unsigned int len;
+    char *newfont, *s;
     ULONG cbR, rc;
 
     putc(GR_QUERY_FONT, PM_pipe);
     fflush(PM_pipe);
 
-    free( PM_font );
     rc = DosRead(fileno(PM_pipe), &len, sizeof(int), &cbR);
-    newfont = (char *)malloc( len + 1 );
-    rc = DosRead(fileno(PM_pipe), newfont, len*sizeof(char), &cbR);
+    newfont = (char *) malloc(len + 1);
+    rc = DosRead(fileno(PM_pipe), newfont, len, &cbR);
     newfont[len] = NUL;
 
-    PM_font = (char *)malloc( len + 1 );
-    sscanf( newfont, "%i.%s", &fontsize, PM_font );
-    PM_fontsize = (double)fontsize;
+    s = strchr(newfont, '.');
+    PM_fontsize = atoi(newfont);
+    if (s != NULL)
+	safe_strncpy(PM_font, s + 1, sizeof(PM_font));
+    else
+	safe_strncpy(PM_font, "Helvetica", sizeof(PM_font));
     free(newfont);
 
     (void) rc;
@@ -823,6 +871,13 @@ PM_point(unsigned int x, unsigned int y, int number)
     mode = 0;
     putc(SET_POINTMODE, PM_pipe);
     fwrite(&mode, sizeof(int), 1, PM_pipe);
+}
+
+
+TERM_PUBLIC void
+PM_pointsize(double size)
+{
+    term_pointsize = size * PM_pointscale;
 }
 
 
@@ -861,7 +916,7 @@ PM_pause(char *str)
     len = strlen(str) + 1;
     fwrite(&len, sizeof(int), 1, PM_pipe);
     fwrite(str, 1, len, PM_pipe);
-    for (rc = sizeof(int) - len % sizeof(int); rc > 0; rc--) {
+    for (rc = (sizeof(int) - len % sizeof(int)) % sizeof(int); rc > 0; rc--) {
 	/* pad rest of int with zeros */
 	putc(NUL, PM_pipe);
     }
@@ -888,7 +943,7 @@ TERM_PUBLIC void
 PM_linewidth(double linewidth)
 {
     int lw;
-    lw = linewidth * 100;
+    lw = PM_linewidth_scale * linewidth * 100;
     putc(SET_LINEWIDTH, PM_pipe);
     fwrite(&lw, sizeof(int), 1, PM_pipe);
 }
@@ -1053,24 +1108,22 @@ PM_image(unsigned int M, unsigned int N, coordval *image, gpiPoint *corner, t_im
     unsigned int image_size;
     unsigned int pad_bytes;
 
-    /* IC_PALETTE and IC_RGB images are converted to a 24bit RGB format
+    /* Images are converted to a 24bit RGB format
        suitable for OS/2's presentation manager:
         - sequence of lines is reversed
         - each line starts at a 4 byte boundary
     */
-
-    /* fprintf(stderr, "PM_image: %i x %i, mode=%s\n", M, N, color_mode==IC_RGB?"IC_RGB":"IC_PALETTE" ); */
     pad_bytes = (4 - (3 * M) % 4) % 4; /* scan lines start on ULONG boundaries */
     image_size = (M + pad_bytes ) * N * 3;
     rgb_image = (PBYTE) gp_alloc(image_size, "PM RGB image");
 
     if (color_mode == IC_PALETTE) {
-    	unsigned int x, y;
+	unsigned int x, y;
 
 	rgb_image += N * (3 * M + pad_bytes);
-	for (y=0; y<N; y++) {
+	for (y = 0; y < N; y++) {
 	    rgb_image -= 3 * M + pad_bytes;
-	    for(x=0; x<M; x++) {
+	    for (x = 0; x < M; x++) {
 		rgb255_color rgb255;
 		rgb255maxcolors_from_gray(*image++, &rgb255);
 		*(rgb_image++) = rgb255.b;
@@ -1079,17 +1132,19 @@ PM_image(unsigned int M, unsigned int N, coordval *image, gpiPoint *corner, t_im
 	    }
 	    rgb_image -= 3 * M;
 	}
-    } else if (color_mode == IC_RGB) {
-    	unsigned int x, y;
+    } else if (color_mode == IC_RGB || color_mode == IC_RGBA) {
+	unsigned int x, y;
 
 	rgb_image += N * (3 * M + pad_bytes);
-	for (y=0; y<N; y++) {
+	for (y = 0; y < N; y++) {
 	    rgb_image -= 3 * M + pad_bytes;
-	    for(x=0; x<M; x++) {
+	    for (x = 0; x < M; x++) {
 		rgb255_color rgb255;
 		rgb255.r = (BYTE) (*image++ * 255 + 0.5);
 		rgb255.g = (BYTE) (*image++ * 255 + 0.5);
 		rgb255.b = (BYTE) (*image++ * 255 + 0.5);
+		/* Note: We just ignore the alpha channel. */
+		if (color_mode == IC_RGBA) image++;
 		*(rgb_image++) = rgb255.b;
 		*(rgb_image++) = rgb255.g;
 		*(rgb_image++) = rgb255.r;
@@ -1098,7 +1153,7 @@ PM_image(unsigned int M, unsigned int N, coordval *image, gpiPoint *corner, t_im
 	}
     }
 
-    if ((color_mode == IC_PALETTE) || (color_mode == IC_RGB)) {
+    if (color_mode == IC_PALETTE || color_mode == IC_RGB  || color_mode == IC_RGBA) {
 	unsigned int i;
 
 	/* transfer data to gnupmdrv */
@@ -1163,20 +1218,15 @@ PM_enhanced_open(
 	/* Select font */
 	/* FIXME: It would be nice to have fractional font sizes
 	          for super- and subscripts. */
-	/* FIXME: sometimes fontname has zero length */
 	if ((fontname != NULL) && strlen(fontname) > 0) {
 	    fontstring = malloc(strlen(fontname) + 16);
 	    sprintf(fontstring, "%s,%i", fontname, (int)fontsize);
-	} else if (PM_font != NULL) {
-	    fontstring = malloc(strlen(PM_font) + 16);
-	    sprintf( fontstring, "%s,%i", PM_font, (int)fontsize );
 	} else {
 	    fontstring = malloc(16);
 	    sprintf(fontstring, ",%i", (int)fontsize);
 	}
 	PM_set_font(fontstring);
 	free(fontstring);
-	PM_query_font();
 
 	/* Scale fractional font height to vertical units of display */
 	/* FIXME:
@@ -1221,7 +1271,7 @@ PM_enhanced_flush()
 	fwrite(&mode, sizeof(int), 1, PM_pipe);
 	fwrite(&len, sizeof(int), 1, PM_pipe);
 	fwrite(enhanced_text, 1, len, PM_pipe);
-	for (len = sizeof(int) - len % sizeof(int); len > 0; len--) {
+	for (len = (sizeof(int) - len % sizeof(int)) % sizeof(int); len > 0; len--) {
 	    /* pad rest of int with zeros */
 	    putc(NUL, PM_pipe);
 	}
@@ -1280,10 +1330,12 @@ PM_enhanced_put_text(unsigned int x, unsigned int y, const char *str)
 {
     char *original_string = (char *)str;
     unsigned int pass, num_passes;
+    char *saved_font;
 
     /* If no enhanced text processing is needed, we can use the plain  */
     /* vanilla put_text() routine instead of this fancy recursive one. */
-    if (ignore_enhanced_text || !strpbrk(str, "{}^_@&~")) {
+    if (ignore_enhanced_text ||
+	(!strpbrk(str, "{}^_@&~") && !contains_unicode(str))) {
 	PM_put_text(x,y,str);
 	return;
     }
@@ -1291,7 +1343,7 @@ PM_enhanced_put_text(unsigned int x, unsigned int y, const char *str)
     /* Set up global variables needed by enhanced_recursion() */
     ENHpm_opened_string = FALSE;
     enhanced_fontscale = 1.0;
-    strncpy(enhanced_escape_format,"%c",sizeof(enhanced_escape_format));
+    safe_strncpy(enhanced_escape_format, "%c", sizeof(enhanced_escape_format));
 
     /* Tell the terminal to move the drawing position */
     /* we store the current position to PM_x and PM_y */
@@ -1309,12 +1361,12 @@ PM_enhanced_put_text(unsigned int x, unsigned int y, const char *str)
 	ENHpm_sizeonly = TRUE;
     }
 
-    for (pass=1; pass <= num_passes; pass++) {
+    /* Update PM_font and PM_fontsize:
+       the font might have been changed from the default. */
+    PM_query_font();
+    saved_font = strdup(PM_font);
 
-	/* This will restore the default font
-	   and update PM_font and PM_fontsize */
-	PM_set_font(NULL);
-	PM_query_font();
+    for (pass = 1; pass <= num_passes; pass++) {
 
 	/* Set the recursion going. We say to keep going until a
 	* closing brace, but we don't really expect to find one.
@@ -1324,7 +1376,7 @@ PM_enhanced_put_text(unsigned int x, unsigned int y, const char *str)
 	* we get stuck in an infinite loop) and try again.
 	*/
 	while (*(str = enhanced_recursion((char *)str, TRUE,
-			"", PM_fontsize,
+			saved_font, PM_fontsize,
 			0.0, TRUE, TRUE, 0))) {
 	    (term->enhanced_flush)();
 
@@ -1332,7 +1384,7 @@ PM_enhanced_put_text(unsigned int x, unsigned int y, const char *str)
 	    enh_err_check(str);
 
 	    if (!*++str)
-	    	break; /* end of string */
+		break; /* end of string */
 
 	    /* else carry on and process the rest of the string */
 	}
@@ -1346,6 +1398,7 @@ PM_enhanced_put_text(unsigned int x, unsigned int y, const char *str)
 	    str = original_string;
 	}
     }
+    free(saved_font);
 
     /* restore default font */
     PM_set_font(NULL);
@@ -1388,7 +1441,7 @@ TERM_TABLE_START(PM_driver)
 #endif
     PM_text_angle,
     PM_justify_text, PM_point, do_arrow, PM_set_font,
-    0 /*pointsize */ ,
+    PM_pointsize,
     TERM_CAN_MULTIPLOT | TERM_NO_OUTPUTFILE | TERM_ENHANCED_TEXT,
     PM_suspend, PM_resume,
     PM_fillbox, PM_linewidth,
@@ -1440,6 +1493,9 @@ START_HELP(pm)
 "                            {enhanced | noenhanced}",
 "                            {font <fontspec>}",
 "                            {nowidelines | widelines}",
+"                            {fontscale <scale>}",
+"                            {linewidth <scale>}",
+"                            {pointscale <scale>}",
 "                            {{title} \"title\"}",
 "",
 " If `persist` is specified, each graph appears in its own window and all",
@@ -1454,6 +1510,9 @@ START_HELP(pm)
 " (see `enhanced text` for details).  Font names for the core PostScript fonts",
 " may be abbreviated to a single letter ",
 " (T/H/C/S for Times/Helvetica/Courier/Symbol).",
+"",
+" `linewidth`, `fontscale`, `pointscale` can be used to scale the width of",
+" lines, the size of text, or the size of the point symbols.",
 "",
 " If `title` is specified, it will be used as the title of the plot window.",
 " It will also be used as the name of the server instance, and will override",

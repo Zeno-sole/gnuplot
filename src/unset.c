@@ -622,7 +622,6 @@ unset_command()
 	break;
     case S_RAXIS:
 	raxis = FALSE;
-	c_token++;
 	break;
     case S_XZEROAXIS:
 	unset_zeroaxis(FIRST_X_AXIS);
@@ -763,7 +762,7 @@ unset_pixmap(int i)
 	    free(pixmap->filename);
 	    free(pixmap->image_data);
 	    free(pixmap);
-	    pixmap = prev->next;
+	    pixmap = prev ? prev->next : NULL;
 	} else {
 	    prev = pixmap;
 	    pixmap = pixmap->next;
@@ -1286,7 +1285,7 @@ unset_logscale()
     for (axis = 0; axis < NUMBER_OF_MAIN_VISIBLE_AXES; axis++) {
 	if (set_for_axis[axis]) {
 	    static char command[64];
-	    if (!isalpha(axis_name(axis)[0]))
+	    if (!isalpha((unsigned char)axis_name(axis)[0]))
 		continue;
 	    if (axis_array[axis].log) {
 		sprintf(command, "unset nonlinear %s", axis_name(axis));

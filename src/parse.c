@@ -597,6 +597,10 @@ parse_primary_expression()
 		at_highest_column_used = a.v.int_val;
 	    add_action(DOLLARS)->v_arg = a;
 	}
+    } else if (equals(c_token, "$#")) {
+	struct value a = {INTGR, {DOLLAR_NCOLUMNS}};
+	c_token++;
+	add_action(DOLLARS)->v_arg = a;
     } else if (equals(c_token, "|")) {
 	struct udvt_entry *udv;
 	c_token++;
@@ -648,6 +652,10 @@ parse_primary_expression()
 
 		/* v4 timecolumn only had 1 param; v5 has 2. Accept either */
 		if (!strcmp(ft[whichfunc].f_name,"timecolumn"))
+		    add_action(PUSHC)->v_arg = num_params;
+
+		/* These functions have an optional 3rd parameter */
+		if (!strncmp(ft[whichfunc].f_name,"weekdate_",9))
 		    add_action(PUSHC)->v_arg = num_params;
 
 		/* The column() function has side effects requiring special handling */
@@ -829,6 +837,7 @@ parse_conditional_expression()
 	at->actions[savepc1].arg.j_arg = at->a_count - savepc1;
 	parse_expression();
 	at->actions[savepc2].arg.j_arg = at->a_count - savepc2;
+	add_action(NOP);
 	parse_recursion_level++;
     }
 }
@@ -1064,13 +1073,18 @@ parse_unary_expression()
 	parse_unary_expression();
 	/* Collapse two operations PUSHC <pos-const> + UMINUS
 	 * into a single operation PUSHC <neg-const>
+	 * Oct 2021: invalid if the previous constant is the else part of a conditional
+	 *           NOP barrier hides the PUSHC to prevent this
 	 */
 	previous = &(at->actions[at->a_count-1]);
-	if (previous->index == PUSHC &&  previous->arg.v_arg.type == INTGR) {
-	    previous->arg.v_arg.v.int_val = -previous->arg.v_arg.v.int_val;
-	} else if (previous->index == PUSHC &&  previous->arg.v_arg.type == CMPLX) {
-	    previous->arg.v_arg.v.cmplx_val.real = -previous->arg.v_arg.v.cmplx_val.real;
-	    previous->arg.v_arg.v.cmplx_val.imag = -previous->arg.v_arg.v.cmplx_val.imag;
+	if (previous->index == PUSHC) {
+	    if (previous->arg.v_arg.type == INTGR) {
+		previous->arg.v_arg.v.int_val = -previous->arg.v_arg.v.int_val;
+	    } else if (previous->arg.v_arg.type == CMPLX) {
+		previous->arg.v_arg.v.cmplx_val.real = -previous->arg.v_arg.v.cmplx_val.real;
+		previous->arg.v_arg.v.cmplx_val.imag = -previous->arg.v_arg.v.cmplx_val.imag;
+	    } else
+		(void) add_action(UMINUS);
 	} else
 	    (void) add_action(UMINUS);
     } else if (equals(c_token, "+")) {	/* unary + is no-op */
@@ -1113,15 +1127,11 @@ parse_link_via( struct udft_entry *udf )
 static void
 parse_sum_expression()
 {
-    /* sum [<var>=<range>] <expr>
-     * - Pass a udf to f_sum (with action code (for <expr>) that is not added
-     *   to the global action table).
-     * - f_sum uses a newly created udv (<var>) to pass the current value of
-     *   <var> to <expr> (resp. its ac).
-     * - The original idea was to treat <expr> as function f(<var>), but there
-     *   was the following problem: Consider 'g(x) = sum [k=1:4] f(k)'. There
-     *   are two dummy variables 'x' and 'k' from different functions 'g' and
-     *   'f' which would require changing the parsing of dummy variables.
+    /* sum [<var>=<start>:<end>] <expr>
+     * - <var> pushed to stack *by name*
+     * - <start> and <end> expressions pushed to stack
+     * - A new action table for <expr> is created and passed to f_sum(arg)
+     *   via arg->udf_arg
      */
 
     char *errormsg = "Expecting 'sum [<var> = <start>:<end>] <expression>'\n";
@@ -1139,10 +1149,7 @@ parse_sum_expression()
     /* <var> */
     if (!isletter(c_token))
 	int_error(c_token, errormsg);
-    /* create a user defined variable and pass it to f_sum via PUSHC, since the
-     * argument of f_sum is already used by the udf */
     m_capture(&varname, c_token, c_token);
-    add_udv(c_token);
     arg = add_action(PUSHC);
     Gstring(&(arg->v_arg), varname);
     c_token++;
@@ -1165,8 +1172,9 @@ parse_sum_expression()
 	int_error(c_token, errormsg);
     c_token++;
 
-    /* parse <expr> and convert it to a new action table. */
-    /* modeled on code from temp_at(). */
+    /* parse <expr> and convert it to a new action table.
+     * modeled on code from temp_at().
+     */
     /* 1. save environment to restart parsing */
     save_at = at;
     save_at_size = at_size;

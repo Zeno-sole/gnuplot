@@ -1700,7 +1700,7 @@ set_encoding()
 	char *senc;
 
 	/* allow string variables as parameter */
-	if ((temp == S_ENC_INVALID) && isstringvalue(c_token) && (senc = try_to_get_string())) {
+	if ((temp == S_ENC_INVALID) && (senc = try_to_get_string())) {
 	    int i;
 	    for (i = 0; encoding_names[i] != NULL; i++)
 		if (strcmp(encoding_names[i], senc) == 0)
@@ -2552,6 +2552,13 @@ set_key()
 
 	case S_KEY_FRONT:
 	    key->front = TRUE;
+	    if (almost_equals(c_token+1,"fill$color") || equals(c_token+1,"fc")) {
+		c_token ++;
+		parse_colorspec(&key->fillcolor, TC_RGB);
+		c_token--;
+	    } else {
+		key->fillcolor = background_fill;
+	    }
 	    break;
 	case S_KEY_NOFRONT:
 	    key->front = FALSE;
@@ -2781,7 +2788,7 @@ set_logscale()
 	if (set_for_axis[axis]) {
 	    static char command[128];
 	    char *dummy;
-	    if (!isalpha(axis_name(axis)[0]))
+	    if (!isalpha((unsigned char)axis_name(axis)[0]))
 		continue;
 	    switch (axis) {
 	    case FIRST_Y_AXIS:
@@ -3024,7 +3031,7 @@ set_mouse()
 	    mouse_setting.label = 1;
 	    ++c_token;
 	    /* check if the optional argument "<label options>" is present */
-	    if (isstringvalue(c_token) && (ctmp = try_to_get_string())) {
+	    if ((ctmp = try_to_get_string())) {
 		free(mouse_setting.labelopts);
 		mouse_setting.labelopts = ctmp;
 	    }
@@ -3045,7 +3052,7 @@ set_mouse()
 	    ++c_token;
 	} else if (almost_equals(c_token, "fo$rmat")) {
 	    ++c_token;
-	    if (isstringvalue(c_token) && (ctmp = try_to_get_string())) {
+	    if ((ctmp = try_to_get_string())) {
 		if (mouse_setting.fmt != mouse_fmt_default)
 		    free(mouse_setting.fmt);
 		mouse_setting.fmt = ctmp;
@@ -3063,7 +3070,7 @@ set_mouse()
 		/* FIXME:  wants sanity check that this is a string-valued */
 		/*         function with parameters x and y */
 		mouse_mode = MOUSE_COORDINATES_FUNCTION;
-	    } else if (isstringvalue(c_token) && (ctmp = try_to_get_string())) {
+	    } else if ((ctmp = try_to_get_string())) {
 		free(mouse_alt_string);
 		mouse_alt_string = ctmp;
 		if (!strlen(mouse_alt_string)) {
@@ -3801,8 +3808,6 @@ set_palette()
 		model = lookup_table(&color_model_tbl[0],c_token);
 		if (model == -1)
 		    int_error(c_token,"unknown color model");
-		if (model == C_MODEL_XYZ)
-		    int_warn(c_token,"CIE/XYZ not supported");
 		sm_palette.cmodel = model;
 		continue;
 	    }
@@ -4045,9 +4050,15 @@ set_pm3d()
 		}
 		/* fall through */
 	    case S_PM3D_BORDER: /* border {linespec} */
-		c_token++;
 		pm3d.border = default_pm3d_border;
+		c_token++;
+		if (equals(c_token, "retrace")) {
+		    pm3d.border.l_type = LT_DEFAULT;
+		    c_token++;
+		}
 		lp_parse(&pm3d.border, LP_ADHOC, FALSE);
+		if (pm3d.border.l_type == LT_DEFAULT)
+		    pm3d.border.pm3d_color.type = TC_DEFAULT;
 		c_token--;
 		continue;
 	    case S_PM3D_NOHIDDEN:
@@ -5058,18 +5069,6 @@ set_terminal()
 	fprintf(stderr,"Options are '%s'\n",term_options);
     if ((term->flags & TERM_MONOCHROME))
 	init_monochrome();
-
-    /* Sanity check:
-     * The most common failure mode found by fuzzing is a divide-by-zero
-     * caused by initializing the basic unit of the current terminal character
-     * size to zero.  I keep patching the individual terminals, but a generic
-     * sanity check may at least prevent a crash due to mistyping.
-     */
-    if (term->h_char <= 0 || term->v_char <= 0) {
-	int_warn(NO_CARET, "invalid terminal font size");
-	term->h_char = 10;
-	term->v_char = 10;
-    }
 }
 
 
@@ -6543,9 +6542,10 @@ parse_label_options( struct text_label *this_label, int ndim)
 }
 
 
-/* <histogramstyle> = {clustered {gap <n>} | rowstacked | columnstacked */
-/*                     errorbars {gap <n>} {linewidth <lw>}}            */
-/*                    {title <title_options>}                           */
+/* <histogramstyle> = {clustered {gap <n>} | rowstacked | columnstacked
+ *                     errorbars {gap <n>} {linewidth <lw>}}
+ *                    {title <title_options>} {nokeyseparators}
+ */
 static void
 parse_histogramstyle( histogram_style *hs,
 		t_histogram_type def_type,
@@ -6556,6 +6556,7 @@ parse_histogramstyle( histogram_style *hs,
     /* Set defaults */
     hs->type  = def_type;
     hs->gap   = def_gap;
+    hs->keyentry = TRUE;
 
     if (END_OF_COMMAND)
 	return;
@@ -6597,6 +6598,9 @@ parse_histogramstyle( histogram_style *hs,
 	    hs->bar_lw = real_expression();
 	    if (hs->bar_lw <= 0)
 		hs->bar_lw = 1;
+	} else if (almost_equals(c_token,"nokey$separators")) {
+	    c_token++;
+	    hs->keyentry = FALSE;
 	} else
 	    /* We hit something unexpected */
 	    break;

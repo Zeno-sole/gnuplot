@@ -48,16 +48,16 @@ static double carlson_elliptic_rj(double x,double y,double z,double p);
 
 /* April 2018
  * libm does not provide Bessel approximations for i0 and i1
- * so we do not include these in the conditional HAVE_LIBM
+ * so we do not include these in the conditional HAVE_JN
  */
 static double ri0(double x);
 static double ri1(double x);
 
-#ifndef HAVE_LIBM
+#ifndef HAVE_JN
 
 /* June 2017
  * These hard-coded Bessel approximations are used only if we
- * can't use the functions in libm
+ * can't use the functions in libm (or some other library)
  */
 
 static double jzero(double x);
@@ -284,7 +284,7 @@ static double qyone[] = {
 	0.1e+1
 };
 
-#endif	/* hard-coded Bessel approximations if not HAVE_LIBM */
+#endif	/* hard-coded Bessel approximations if not HAVE_JN */
 
 /* Chebyshev coefficients for exp(-x) I0(x)
  * in the interval [0,8].
@@ -1063,7 +1063,7 @@ f_exists(union argument *arg)
     }
 }
 
-#ifdef HAVE_LIBM
+#ifdef HAVE_JN
 
 /* June 2017
  * Use the Bessel functions from libm if possible
@@ -1277,7 +1277,7 @@ ry1(double x)
 #define jn(n,x) not_a_number()
 #define yn(n,x) not_a_number()
 
-#endif	/* hard-coded Bessel approximations if not HAVE_LIBM */
+#endif	/* hard-coded Bessel approximations if not HAVE_JN */
 
 /*
  * Evaluates the series (with n coefficients stored in array[])
@@ -1479,6 +1479,63 @@ TIMEFUNC( f_tmmon, tm_mon)
 TIMEFUNC( f_tmyear, tm_year)
 TIMEFUNC( f_tmwday, tm_wday)
 TIMEFUNC( f_tmyday, tm_yday)
+
+void								
+f_tmweek(union argument *arg)					
+{								
+    struct value a;						
+    int week;
+    int standard;
+								
+    (void) arg;			/* avoid -Wunused warning */	
+    if ((pop(&a)->type != INTGR) || (a.v.int_val < 0) || (a.v.int_val > 1))
+	int_error(NO_CARET, "syntax: tm_week(time, standard)");
+    standard = a.v.int_val;
+    week = tmweek(real(pop(&a)), standard);
+    push(Ginteger(&a, week));
+}
+
+/*
+ * time = weekdate_iso( year, week [, day] )
+ */
+void
+f_weekdate_iso(union argument *arg)
+{
+    struct value a;
+    int nparams;
+    int year, week, day;
+
+    (void) arg;			/* avoid -Wunused warning */	
+    nparams = real(pop(&a));
+    if (nparams == 3)
+	day = real(pop(&a));
+    else
+	day = 1;
+    week = real(pop(&a));
+    year = real(pop(&a));
+    push(Gcomplex(&a, weekdate(year, week, day, 0), 0.0));
+}
+
+/*
+ * time = weekdate_cdc( year, week [, day] )
+ */
+void
+f_weekdate_cdc(union argument *arg)
+{
+    struct value a;
+    int nparams;
+    int year, week, day;
+
+    (void) arg;			/* avoid -Wunused warning */	
+    nparams = real(pop(&a));
+    if (nparams == 3)
+	day = real(pop(&a));
+    else
+	day = 1;
+    week = real(pop(&a));
+    year = real(pop(&a));
+    push(Gcomplex(&a, weekdate(year, week, day, 1), 0.0));
+}
 
 
 /*****************************************************************************/

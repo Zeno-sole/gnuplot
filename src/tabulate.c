@@ -196,6 +196,9 @@ print_table(struct curve_points *current_plot, int plot_num)
 	    break;
 	}
 
+	if (current_plot->plot_smooth == SMOOTH_BINS)
+	    len = strappend(&line, &size, len, "  N");
+
 	if (current_plot->varcolor)
 	    len = strappend(&line, &size, len, "  color");
 
@@ -231,7 +234,12 @@ print_table(struct curve_points *current_plot, int plot_num)
 		i++, point++) {
 
 		/* Reproduce blank lines read from original input file, if any */
-		if (!memcmp(point, &blank_data_line, sizeof(struct coordinate))) {
+		/* NB: complicated test is necessary because if struct coordinate
+		 *     is padded, the padding has not been initialized and memcmp
+		 *     chokes on uninitialized bytes (or anyhow valgrind thinks so)
+		 */
+		if (point->type == UNDEFINED
+		&&  !memcmp(&point->x, &blank_data_line.x, 7*sizeof(coordval))) {
 		    print_line("");
 		    continue;
 		}
@@ -302,6 +310,11 @@ print_table(struct curve_points *current_plot, int plot_num)
 			/* ? */
 			break;
 		} /* switch(plot type) */
+
+		if (current_plot->plot_smooth == SMOOTH_BINS) {
+		    snprintf(buffer, BUFFERSIZE, " %4d", (int)point->z);
+		    len = strappend(&line, &size, len, buffer);
+		}
 
 		if (current_plot->varcolor) {
 		    double colorval = current_plot->varcolor[i];

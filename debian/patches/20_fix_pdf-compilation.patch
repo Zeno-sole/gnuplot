@@ -1,0 +1,57 @@
+Description: Fix PDF compilation
+Author: Anton Gladky <gladk@debian.org>
+Bug-Debian: https://bugs.debian.org/1016323
+Last-Update: 2022-08-19
+
+--- gnuplot-5.4.4+dfsg1.orig/docs/titlepag.tex
++++ gnuplot-5.4.4+dfsg1/docs/titlepag.tex
+@@ -13,7 +13,7 @@
+    \documentclass[twoside]{article}
+    \usepackage{toc_entr}
+    \usepackage{latexsym}
+-   \usepackage[utf8x]{inputenc}
++   \usepackage[utf8]{inputenc}
+    \usepackage{textgreek}
+ 
+   \usepackage[
+--- gnuplot-5.4.4+dfsg1.orig/src/encoding.c
++++ gnuplot-5.4.4+dfsg1/src/encoding.c
+@@ -347,7 +347,7 @@ latex_input_encoding(enum set_encoding_i
+ 	break;
+     case S_ENC_UTF8:
+ 	/* utf8x (not utf8) is needed to pick up degree and micro signs */
+-	inputenc = "utf8x";
++	inputenc = "utf8";
+ 	break;
+     case S_ENC_INVALID:
+ 	int_error(NO_CARET, "invalid input encoding used");
+--- gnuplot-5.4.4+dfsg1.orig/term/lua/gnuplot-tikz.lua
++++ gnuplot-5.4.4+dfsg1/term/lua/gnuplot-tikz.lua
+@@ -1330,7 +1330,7 @@ gfx.format.latex = {
+   docheader        = "\\documentclass["..pgf.DEFAULT_FONT_SIZE.."pt]{article}\n"
+                       .."\\usepackage[T1]{fontenc}\n"
+                       .."\\usepackage{textcomp}\n\n"
+-                      .."\\usepackage[utf8x]{inputenc}\n"
++                      .."\\usepackage[utf8]{inputenc}\n"
+                       .."\\SetUnicodeOption{mathletters}\n\n"
+                       .."\\usepackage{"..pgf.STYLE_FILE_BASENAME.."}\n"
+                       .."\\pagestyle{empty}\n"
+--- gnuplot-5.4.4+dfsg1.orig/docs/gnuplot.doc
++++ gnuplot-5.4.4+dfsg1/docs/gnuplot.doc
+@@ -4730,7 +4730,6 @@ Ffigure_labels2
+  one of them to each point in a plot based on the value in data column 3:
+ 
+    set encoding utf8
+-   symbol(z) = "∙□+⊙♠♣♡♢"[int(z):int(z)]
+    splot 'file' using 1:2:(symbol($3)) with labels
+ 
+  This example shows use of labels with variable rotation angle in column 4 and
+@@ -11611,7 +11610,7 @@ Ffigure_multiple_keys
+  generate axis tic labels. The C library routine always use a hyphen character
+  (ascii \055) to indicate a negative number, as in -7.  Many people prefer a
+  different typographic minus sign character (unicode U+2212) for this purpose,
+- as in −7.  The command
++ as in 7.  The command
+ 
+       set minussign
+ 

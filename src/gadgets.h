@@ -276,6 +276,7 @@ typedef struct histogram_style {
     int type;		/* enum t_histogram_type */
     int gap;		/* set style hist gap <n> (space between clusters) */
     int clustersize;	/* number of datasets in this histogram */
+    TBOOLEAN keyentry;	/* FALSE suppresses extra blank line in key */
     double start;	/* X-coord of first histogram entry */
     double end;		/* X-coord of last histogram entry */
     int startcolor;	/* LT_UNDEFINED or explicit color for first entry */
@@ -291,7 +292,7 @@ typedef enum histogram_type {
 	HT_CLUSTERED,
 	HT_ERRORBARS
 } t_histogram_type;
-#define DEFAULT_HISTOGRAM_STYLE { HT_CLUSTERED, 2, 1, 0.0, 0.0, LT_UNDEFINED, LT_UNDEFINED, 0, NULL, EMPTY_LABELSTRUCT }
+#define DEFAULT_HISTOGRAM_STYLE { HT_CLUSTERED, 2, 1, TRUE, 0.0, 0.0, LT_UNDEFINED, LT_UNDEFINED, 0, NULL, EMPTY_LABELSTRUCT }
 
 typedef enum en_boxplot_factor_labels {
 	BOXPLOT_FACTOR_LABELS_OFF,
@@ -368,6 +369,7 @@ typedef struct {
     struct lp_style_type box;	/* linetype of box around key:  */
     char *font;			/* Will be used for both key title and plot titles */
     struct t_colorspec textcolor;	/* Will be used for both key title and plot titles */
+    struct t_colorspec fillcolor;	/* only used if "set key front" */
     BoundingBox bounds;
     int maxcols;		/* maximum no of columns for horizontal keys */
     int maxrows;		/* maximum no of rows for vertical keys */
@@ -391,6 +393,7 @@ extern legend_key keyT;
 		FALSE, FALSE, FALSE, TRUE, \
 		DEFAULT_KEYBOX_LP, \
 		NULL, {TC_LT, LT_BLACK, 0.0}, \
+		BACKGROUND_COLORSPEC, \
 		{0,0,0,0}, 0, 0, \
 		EMPTY_LABELSTRUCT}
 
@@ -557,7 +560,7 @@ extern int current_x11_windowid;
 #define LAYER_BEHIND     -1
 #define LAYER_BACK        0
 #define LAYER_FRONT       1
-#define LAYER_FOREGROUND  2	/* not currently used */
+#define LAYER_FOREGROUND  2	/* used only for axis tic labels */
 #define LAYER_FRONTBACK   4	/* used only by grid walls */
 #define LAYER_DEPTHORDER  8	/* for objects to be included in pm3d depth sorting */
 #define LAYER_PLOT	 16	/* currently used only by fig.trm */

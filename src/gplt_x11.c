@@ -2216,7 +2216,7 @@ exec_cmd(plot_struct *plot, char *command)
 	}
 
     /*   X11_vector(x, y) - draw vector  */
-    if (*buffer == 'V') {
+    if (*buffer == 'V' && plot->lt != LT_NODRAW) {
 	x = strtol(strx, &stry, 0);
 	y = strtol(stry, NULL, 0);
 
@@ -2235,7 +2235,6 @@ exec_cmd(plot_struct *plot, char *command)
 	cy = y;
 	/* Limit the number of vertices in any single polyline */
 	if (polyline_size > max_request_size) {
-	    FPRINTF((stderr, "(display) dumping polyline size %d\n", polyline_size));
 	    XDrawLines(dpy, plot->pixmap, *current_gc,
 			polyline, polyline_size+1, CoordModeOrigin);
 	    polyline_size = 0;
@@ -2247,14 +2246,19 @@ exec_cmd(plot_struct *plot, char *command)
 	}
 	return;
     } else if (polyline_size > 0) {
-	FPRINTF((stderr, "(display) dumping polyline size %d\n", polyline_size));
 	XDrawLines(dpy, plot->pixmap, *current_gc,
 			polyline, polyline_size+1, CoordModeOrigin);
 	polyline_size = 0;
     }
 
+    /*   Vector with LT_NODRAW is treated as a move */
+    if (*buffer == 'V' && plot->lt == LT_NODRAW) {
+	cx = strtol(strx, &stry, 0);
+	cy = strtol(stry, NULL, 0);
+    }
+
     /*   X11_move(x, y) - move  */
-    if (*buffer == 'M') {
+    else if (*buffer == 'M') {
 	cx = strtol(strx, &stry, 0);
 	cy = strtol(stry, NULL, 0);
     }
@@ -2358,6 +2362,7 @@ exec_cmd(plot_struct *plot, char *command)
 		    boxing = TRUE;
 		    return;
 	case 'B':	/* Draw text bounding box */
+		    XSetLineAttributes(dpy, gc, plot->user_width, plot->type, CapProjecting, JoinBevel);
 		    bb[0] = bounding_box[0] - box_xmargin;
 		    bb[1] = bounding_box[1] - box_ymargin;
 		    bb[2] = bounding_box[2] + box_xmargin;
@@ -2535,7 +2540,7 @@ exec_cmd(plot_struct *plot, char *command)
 
 	/* Fixme: no mechanism to hold width or dashstyle for LT_BACKGROUND */
 	if (plot->lt < 0) { /* LT_NODRAW, LT_BACKGROUND, LT_UNDEFINED */
-	    plot->lt = -3;
+	    plot->lt = LT_NODRAW;
 
 	} else {
 	    /* LT_SOLID is a special case because version 5 uses it for all  */

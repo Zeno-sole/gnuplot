@@ -5,3 +5,4 @@
 10_removepicins.patch
 11_fix_linkage_wx.patch
 13_honour_SOURCE_DATE_EPOCH.patch
+20_fix_pdf-compilation.patch

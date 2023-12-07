@@ -83,6 +83,9 @@ static double largest_polar_circle;
 static double spoke_x0, spoke_y0, spoke_x1, spoke_y1;
 static double spoke_dx, spoke_dy;
 
+/* Used to prevent tic labels from being drawn more than once */
+static int current_layer = 0;
+
 /*}}} */
 
 /* Status information for stacked histogram plots */
@@ -207,15 +210,11 @@ place_grid(int layer)
     term_apply_lp_properties(&border_lp);	/* border linetype */
     largest_polar_circle = 0;
 
-    /* We used to go through this process only once, drawing both the grid lines
-     * and the axis tic labels.  Now we allow for a separate pass that redraws only
-     * the labels if the user has chosen "set tics front".
-     * This guarantees that the axis tic labels lie on top of all grid lines.
-     */
+    /* This suppresses redrawing the grid lines */
     if (layer == LAYER_FOREGROUND)
 	grid_lp.l_type = mgrid_lp.l_type = LT_NODRAW;
 
-    if (!grid_tics_in_front || (layer == LAYER_FOREGROUND)) {
+    if (TRUE) {
 	/* select first mapping */
 	x_axis = FIRST_X_AXIS;
 	y_axis = FIRST_Y_AXIS;
@@ -705,6 +704,7 @@ do_plot(struct curve_points *plots, int pcount)
 	make_palette();
 
     /* Give a chance for background items to be behind everything else */
+    current_layer = LAYER_BEHIND;
     place_pixmaps(LAYER_BEHIND, 2);
     place_objects( first_object, LAYER_BEHIND, 2);
 
@@ -714,6 +714,7 @@ do_plot(struct curve_points *plots, int pcount)
     (term->layer)(TERM_LAYER_BACKTEXT);
 
     /* DRAW TICS AND GRID */
+    current_layer = LAYER_BACK;
     if (grid_layer == LAYER_BACK || grid_layer == LAYER_BEHIND)
 	place_grid(grid_layer);
 
@@ -800,8 +801,11 @@ do_plot(struct curve_points *plots, int pcount)
 	/* Skip a line in the key between histogram clusters */
 	if (this_plot->plot_style == HISTOGRAMS
 	&&  previous_plot_style == HISTOGRAMS
-	&&  this_plot->histogram_sequence == 0 && !at_left_of_key()) {
+	&&  this_plot->histogram_sequence == 0
+	&&  this_plot->histogram->keyentry
+	&& !at_left_of_key()) {
 	    key_count++;
+	    advance_key(TRUE);	/* correct for inverted key */
 	    advance_key(0);
 	}
 
@@ -1067,14 +1071,18 @@ do_plot(struct curve_points *plots, int pcount)
     }
 
     /* DRAW TICS AND GRID */
+    current_layer = LAYER_FRONT;
     if (grid_layer == LAYER_FRONT)
-	place_grid(grid_layer);
+	place_grid(LAYER_FRONT);
+
     if (raxis)
 	place_raxis();
 
     /* Redraw the axis tic labels and tic marks if "set tics front" */
-    if (grid_tics_in_front)
+    if (grid_tics_in_front) {
+	current_layer = LAYER_FOREGROUND;
 	place_grid(LAYER_FOREGROUND);
+    }
 
     /* DRAW ZERO AXES */
     /* redraw after grid so that axes linetypes are on top */
@@ -1388,8 +1396,10 @@ finish_filled_curve(
     if (filledcurves_options->oneside < 0 && side > 0)
 	return;
 
-    /* EAM Apr 2013 - Use new polygon clipping code */
-    clipcorners = gp_realloc( clipcorners, 2*points*sizeof(gpiPoint), "filledcurve verticess");
+    /* The polygon clipping code does not deal well with 1- or 2- vertex "polygons" */
+    if (points < 3)
+	return;
+    clipcorners = gp_realloc(clipcorners, 2*points*sizeof(gpiPoint), "filledcurve vertices");
     clip_polygon(corners, clipcorners, points, &clippoints);
     clipcorners->style = style_from_fill(&plot->fill_properties);
     if (clippoints > 0)
@@ -1633,12 +1643,15 @@ plot_steps(struct curve_points *plot)
     int xleft, xright, ytop, ybot;	/* plot limits in terminal coords */
     int y0=0;				/* baseline */
     int style = 0;
+    int oneside = plot->filledcurves_options.oneside;	/* above/below */
 
     /* EAM April 2011:  Default to lines only, but allow filled boxes */
     if ((plot->plot_style & PLOT_STYLE_HAS_FILL) && t->fillbox) {
 	double ey = 0;
 	style = style_from_fill(&plot->fill_properties);
-	if (Y_AXIS.log)
+	if (plot->filledcurves_options.closeto == FILLEDCURVES_ATY1)
+	    ey = plot->filledcurves_options.at;
+	else if (Y_AXIS.log)
 	    ey = Y_AXIS.min;
 	else
 	    cliptorange(ey, Y_AXIS.min, Y_AXIS.max);
@@ -1669,18 +1682,19 @@ plot_steps(struct curve_points *plot)
 		    cliptorange(xr, xleft, xright);
 		    cliptorange(xl, xleft, xright);
 		    cliptorange(y, ybot, ytop);
+		    cliptorange(yprev, ybot, ytop);
 
 		    /* Entire box is out of range on x */
 		    if (xr == xl && (xr == xleft || xr == xright))
 			break;
 
 		    /* Some terminals fail to completely color the join between boxes */
-		    if (style == FS_OPAQUE)
+		    if (style == FS_OPAQUE && oneside == 0)
 			draw_clip_line(xl, yprev, xl, y0);
 
-		    if (yprev - y0 < 0)
+		    if ((yprev - y0 < 0) && (oneside <= 0))
 			(*t->fillbox)(style, xl, yprev, (xr-xl), y0-yprev);
-		    else
+		    if ((yprev - y0 >= 0) && (oneside >= 0))
 			(*t->fillbox)(style, xl, y0, (xr-xl), yprev-y0);
 		} else {
 		    draw_clip_line(xprev, yprev, x, yprev);
@@ -2384,12 +2398,14 @@ plot_points(struct curve_points *plot)
 		    && x <= plot_bounds.xright - p_width
 		    && y <= plot_bounds.ytop - p_height)) {
 
-		if ((plot->plot_style == POINTSTYLE || plot->plot_style == LINESPOINTS)
-		&&  plot->lp_properties.p_size == PTSZ_VARIABLE)
+		if ((plot->lp_properties.p_size == PTSZ_VARIABLE)
+		&&  (plot->plot_style == POINTSTYLE || plot->plot_style == LINESPOINTS
+		     || plot->plot_style == YERRORBARS))
 		    (*t->pointsize)(pointsize * plot->points[i].CRD_PTSIZE);
 
 		/* Feb 2016: variable point type */
-		if ((plot->plot_style == POINTSTYLE || plot->plot_style == LINESPOINTS)
+		if ((plot->plot_style == POINTSTYLE || plot->plot_style == LINESPOINTS
+		     || plot->plot_style == YERRORBARS)
 		&&  (plot->lp_properties.p_type == PT_VARIABLE)
 		&&  !(isnan(plot->points[i].CRD_PTTYPE))) {
 		    pointtype = plot->points[i].CRD_PTTYPE - 1;
@@ -2402,7 +2418,8 @@ plot_points(struct curve_points *plot)
 		/* implementing a special point type, but that would require    */
 		/* modification to all terminal drivers. It might be worth it.  */
 		/* term_apply_lp_properties will restore the point type and size*/
-		if (plot->plot_style == LINESPOINTS && interval < 0) {
+		if ((plot->plot_style == LINESPOINTS && interval < 0)
+		||  (plot->plot_style == YERRORBARS)) {
 		    (*t->set_color)(&background_fill);
 		    (*t->pointsize)(pointsize * pointintervalbox);
 		    (*t->point) (x, y, 6);
@@ -2607,7 +2624,7 @@ plot_dots(struct curve_points *plot)
 }
 
 /* plot_vectors:
- * Plot the curves in VECTORS style
+ * Plot the curves in VECTORS style (used also for ARROWS)
  */
 static void
 plot_vectors(struct curve_points *plot)
@@ -2665,6 +2682,8 @@ plot_vectors(struct curve_points *plot)
 	    arrow_use_properties(&ap, as);
 	    term_apply_lp_properties(&ap.lp_properties);
 	    apply_head_properties(&ap);
+	    /* Over-write plot lp_properties so the check for variable color works */
+	    plot->lp_properties = ap.lp_properties;
 	}
 
 	/* variable color read from extra data column. */
@@ -3196,7 +3215,8 @@ plot_spiderplot(struct curve_points *plot)
 
 	/* Draw filled area */
 	if (out_length > 1 && plot->fill_properties.fillstyle != FS_EMPTY) {
-	    term->filled_polygon(out_length, clpcorn);
+	    if (term->filled_polygon)
+		term->filled_polygon(out_length, clpcorn);
 	}
 
 	/* Draw perimeter */
@@ -3545,6 +3565,10 @@ xtick2d_callback(
 	(*t->vector) (x, tic_mirror - ticsize);
     }
 
+    /* If grid_tics_in_front, defer tic labels until LAYER_FOREGROUND */
+    if (grid_tics_in_front && current_layer != LAYER_FOREGROUND)
+	return;
+
     if (text) {
 	/* get offset */
 	double offsetx_d, offsety_d;
@@ -3626,6 +3650,11 @@ ytick2d_callback(
 	(*t->move) (tic_mirror, y);
 	(*t->vector) (tic_mirror - ticsize, y);
     }
+
+    /* If grid_tics_in_front, defer tic labels until LAYER_FOREGROUND */
+    if (grid_tics_in_front && current_layer != LAYER_FOREGROUND)
+	return;
+
     if (text) {
 	/* get offset */
 	double offsetx_d, offsety_d;
@@ -3690,6 +3719,10 @@ ttick_callback(
     }
 
     draw_clip_line(xl, yl, xu, yu);
+
+    /* If grid_tics_in_front, defer tic labels until LAYER_FOREGROUND */
+    if (grid_tics_in_front && current_layer != LAYER_FOREGROUND)
+	return;
 
     if (text && !clip_point(xu, yu)) {
 	if (this_axis->ticdef.textcolor.type != TC_DEFAULT)
@@ -4655,6 +4688,10 @@ process_image(void *plot, t_procimg_action action)
      * function for images will be used.  Otherwise, the terminal function for
      * filled polygons are used to construct parallelograms for the pixel elements.
      */
+    /* Catch pathological cases */
+    if (points[0].type == UNDEFINED || points[p_count-1].type == UNDEFINED)
+	int_error(NO_CARET, "image coordinates undefined");
+
     if (project_points) {
 	map3d_xy_double(points[0].x, points[0].y, points[0].z,
 			&p_start_corner[0], &p_start_corner[1]);
@@ -5125,7 +5162,8 @@ process_image(void *plot, t_procimg_action action)
 		if (corners_in_view > 0 || view_in_pixel) {
 
 		    int N_corners = 0;    /* Number of corners. */
-		    gpiPoint corners[5];  /* At most 5 corners. */
+		    gpiPoint corners[8];  /* At most 5 corners. */
+		    gpiPoint clipped[8];  /* used during clipping */
 
 		    corners[0].style = FS_DEFAULT;
 
@@ -5190,6 +5228,13 @@ process_image(void *plot, t_procimg_action action)
 				alpha = 100;
 			    if (term->flags & TERM_ALPHA_CHANNEL)
 				corners[0].style = FS_TRANSPARENT_SOLID + (alpha<<4);
+			}
+
+			/* Clip to x/y in 2D projection */
+			if (!project_points || splot_map) {
+			    for (k=0; k<N_corners; k++)
+				clipped[k] = corners[k];
+			    clip_polygon(clipped, corners, N_corners, &N_corners);
 			}
 
 			if (rectangular_image && term->fillbox

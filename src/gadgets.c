@@ -608,7 +608,7 @@ clip_polygon(gpiPoint *in, gpiPoint *out, int in_length, int *out_length)
     gpiPoint clip_boundary[5];
     static gpiPoint *tmp_corners = NULL;
 
-    if (!clip_area) {
+    if (!clip_area || in_length < 3) {
 	memcpy(out, in, in_length * sizeof(gpiPoint));
 	*out_length = in_length;
 	return;
@@ -787,11 +787,6 @@ apply_pm3dcolor(struct t_colorspec *tc)
     /* Leave unchanged. (used only by "set errorbars"??) */
     if (tc->type == TC_VARIABLE)
 	return;
-
-    if (!is_plot_with_palette()) {
-	t->set_color(&black);
-	return;
-    }
 
     switch (tc->type) {
 	case TC_Z:
@@ -1027,7 +1022,7 @@ label_width(const char *str, int *lines)
     s = lab;
     while ((e = (char *) strchr(s, '\n')) != NULL) {
 	*e = '\0';
-	len = estimate_strlen(s);	/* = e-s ? */
+	len = estimate_strlen(s, NULL);	/* = e-s ? */
 	if (len > mlen)
 	    mlen = len;
 	if (len || l || *str == '\n')

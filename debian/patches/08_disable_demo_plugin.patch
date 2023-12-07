@@ -5,10 +5,10 @@ Description: temporarily disable demo plugin
 Author: Anton Gladky <gladk@debian.org>
 Last-Update: 2015-06-16
 
-Index: gnuplot/demo/Makefile.in
+Index: gnuplot-5.4.4/demo/Makefile.in
 ===================================================================
---- gnuplot.orig/demo/Makefile.in
-+++ gnuplot/demo/Makefile.in
+--- gnuplot-5.4.4.orig/demo/Makefile.in
++++ gnuplot-5.4.4/demo/Makefile.in
 @@ -337,7 +337,6 @@ epslatex.ps epslatex.tex random.tmp stri
  
  BINARY_FILES = binary1 binary2 binary3
@@ -17,18 +17,18 @@ Index: gnuplot/demo/Makefile.in
  DEMO = all.dem
  GNUPLOT = gnuplot
  EXTRA_DIST = Makefile.am.in lena-keypoints.bin scatter2.bin sine.bin \
-@@ -389,7 +388,6 @@ gen-random.inc stat.inc GM1_sugar.pdb ar
- icon64x64.png GM1_bonds.r3d blutux.rgb lena.rgb sound.par sound2.par \
- start.par gnuplot.rot gnu-valley random-points gpdemos.tcl html 
+@@ -391,7 +390,6 @@ GM1_sugar.pdb aries.png bldg.png gradien
+ blutux.rgb lena.rgb sound.par sound2.par start.par gnuplot.rot gnu-valley \
+ random-points gpdemos.tcl html 
  
 -@BUILD_PLUGIN_TRUE@PLUGIN_DIR = plugin
  all: all-recursive
  
  .SUFFIXES:
-Index: gnuplot/demo/Makefile.am
+Index: gnuplot-5.4.4/demo/Makefile.am
 ===================================================================
---- gnuplot.orig/demo/Makefile.am
-+++ gnuplot/demo/Makefile.am
+--- gnuplot-5.4.4.orig/demo/Makefile.am
++++ gnuplot-5.4.4/demo/Makefile.am
 @@ -9,7 +9,6 @@ epslatex.ps epslatex.tex random.tmp stri
  BINARY_FILES = binary1 binary2 binary3
  
@@ -37,17 +37,17 @@ Index: gnuplot/demo/Makefile.am
  
  DEMO = all.dem
  
-@@ -133,6 +132,3 @@ Makefile.am: Makefile.am.in
+@@ -135,6 +134,3 @@ Makefile.am: Makefile.am.in
  	chmod og-w $@t
  	mv $@t $@
  
 -if BUILD_PLUGIN
 -PLUGIN_DIR = plugin
 -endif
-Index: gnuplot/demo/Makefile.am.in
+Index: gnuplot-5.4.4/demo/Makefile.am.in
 ===================================================================
---- gnuplot.orig/demo/Makefile.am.in
-+++ gnuplot/demo/Makefile.am.in
+--- gnuplot-5.4.4.orig/demo/Makefile.am.in
++++ gnuplot-5.4.4/demo/Makefile.am.in
 @@ -9,7 +9,6 @@ epslatex.ps epslatex.tex random.tmp stri
  BINARY_FILES = binary1 binary2 binary3
  

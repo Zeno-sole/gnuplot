@@ -22,7 +22,7 @@ C
 ^  James R. Van Zandt, Alex Woo, Johannes Zellner<br>
 ^</p>
 ^<p align="center">  Copyright (C) 1986 - 1993, 1998 - 2004   Thomas Williams, Colin Kelley<br>
-^     Copyright (C) 2004 - 2020 various authors</p>
+^     Copyright (C) 2004 - 2022 various authors</p>
 ^<p align="center">   Mailing list for comments: <tt>gnuplot-info@lists.sourceforge.net</tt><br>
 ^      Mailing list for bug reports: <tt>gnuplot-bugs@lists.sourceforge.net</tt><br>
 ^      Web access (preferred): <tt>http://sourceforge.net/projects/gnuplot</tt></p>
@@ -191,10 +191,11 @@ C
 
 2 New features
 3 Features introduced in version 5.4
-?new version_5.4
-?new features
 ?new
+ These sections list new commands, plot styles, and other features introduced
+ in version 5.4.
 4 Support for 64-bit integer arithmetic
+?new 64-bit_arithmetic
 #start
 #b All evaluation of expressions and functions uses 64-integer arithmetic if
 ## supported by the platform.
@@ -203,6 +204,7 @@ C
 #end
 
 4 Voxel grids
+?new voxels
  Gnuplot now supports operations based on 3D grids of voxel data.
 
 #start
@@ -225,7 +227,7 @@ C
 #end
 
 4 New plot styles and style options
-?new plot styles
+?new plot_styles
 #start
 #b 3D plot style `with polygons` reads polygon faces from a data file.
 ## This can be used to create a surface or to construct a solid object.
@@ -257,25 +259,26 @@ C
 #end
 
 4 New commands and command options
+?new commands
 #start
 #b Voxel grid commands. See `set vgrid`, `set vxrange`, `vclear`, `vfill`,
 ## and `voxel`.
 #b New options for showing the xy xz and yz planes in 3D plots.
-##See `set walls`, `set grid vertical`.
+## See `set walls`, `set grid vertical`.
 #b `set table separator {tab|comma|"char"}` can be used to create csv files.
-##See `plot with table`.
+## See `plot with table`.
 #b New options `set view projection {xy|xz|yz}` adjust view angles, axis tic
-##and label placement to generate a 2D projection of a 3D splot.
-##`set view projection xy` is equivalent to `set view map`.
+## and label placement to generate a 2D projection of a 3D splot.
+## `set view projection xy` is equivalent to `set view map`.
 #b `set rgbmax <value>` controls interpretation of input RGB values.
 #b Array size can be implicit if an initializer is present, e.g. `Array A = [1,2,3]`.
 #b Optional radial clipping of line segments in polar mode. See `set clip`.
 #b Extra lines to customize the key can be added by substituting `keyentry` in
 ## place of a filename or function in `plot` and `splot` commands.
-##This produces a line in the key without generating a corresponding plot.
-##See `keyentry`.
+## This produces a line in the key without generating a corresponding plot.
+## See `keyentry`.
 #b User-specified translation of mouse coordinates (EXPERIMENTAL).
-##See map_projection demo.
+## See map_projection demo.
 #b `set datafile columnheaders` causes first line of input to be read as strings
 ## rather than as data values.  Equivalent to `set key autotitle columnheader`
 ## except that it does not affect generation of key entries.  If this option is
@@ -285,6 +288,7 @@ C
 #end
 
 4 New terminals and terminal options
+?new terminals
 #start
 #b The `pcl5` terminal has been extended to support PCL5e/PCL5c printers and
 ## many modern gnuplot features.
@@ -299,11 +303,14 @@ C
 #b The previously experimental Direct2D variant of the `windows` terminal
 ## replaces the GDI and GDI+ variants. It now supports printing using D2D
 ## and color fonts.
+#b The `pm` OS/2 terminal has been modernized to support e.g. uft8, bold and
+## italic text, and dashed lines. (Since 5.2.7).
 #b The `dospc` and `svga` DOS terminals have been modernized and now support
 ## interactive keyboard and mouse (svga only) input.
 #end
 
 4 Pixmaps as objects
+?new pixmaps
 #start
 #b `set pixmap` allows import of an image in standard format (png jpeg gif) as
 ## a pixmap that can be positioned anywhere in a plot or on the page.
@@ -311,22 +318,52 @@ C
 ## ratio and size independent of axis scaling or rotation. See `pixmap`.
 #end
 
+4 Week-date time formats
+?new week-date_formats
+ The Covid-19 pandemic of 2020/2021 generated increased interest in plotting
+ epidemiological data, which is often tabulated using a "week date" reporting
+ convention.  This revealed deficiencies with gnuplot support for this
+ convention, including errors in time formats %W and %U.  These formats
+ worked incorrectly prior to version 5.4.2.
+#start
+#b Time specifier format %W has been brought into accord with the
+## ISO 8601 week date standard.
+#b Time specifier format %U has been brought into accord with the
+## CDC/MMWR week date standard.
+#b New function `tm_week(time, std)` returns ISO or CDC standard week of year.
+#b New function `weekdate_iso(year, week, day)` converts ISO standard week date
+## to calendar time.
+#b New function `weekdate_cdc(year, week, day)` converts CDC standard week date
+## to calendar time.
+#end
+
 4 Other new features
+?new other
 #start
 #b Enhanced text mode accepts \U+xxxx (xxxx is a 4 or 5 character hexadecimal)
-##as representing a Unicode code point that is converted to the corresponding
-##UTF-8 byte sequence on output.
+## as representing a Unicode code point that is converted to the corresponding
+## UTF-8 byte sequence on output.
+#b The character sequence $# in a `using` specifier evaluates to the total
+## number of columns available in the current line of data.  For example
+## "plot FOO using 0:(column($# - 1))" plots the last-but-one field of each row.
 #b Time/date input recognizes format %p to handle am/pm field
 #b plot titles are evaluated *after* plotting, rather than before. This allows
 ## the title to reference quantities calculated while plotting.
 #b Built-in modified Bessel functions (besi0 besi1 besin)
 #b Built-in order N Bessel functions of the 1st and 2nd kind (besjn besyn)
+#b (5.4.2) in "using" context, $# means "number of columns in current data line"
+#b (5.4.2) "plot with fillsteps {above|below y=<value>}" analogous to filledcurves
+#b (5.4.3) "nogrid" flag allows splot components to opt out of dgrid3d processing
+#b (5.4.3) "set style histogram nokeyseparators" (see `newhistogram`)
 #end
 
 4 Changes
+?new changes
 #start
 #b `pm3d filled area quadrangles` are clipped smoothly to current zrange.
 ## This affects pm3d surfaces and also the faces of 3D boxes, polygons, etc.
+## `set pm3d border retrace` paints over potential antialiasing glitches between
+## adjacent pm3d quadrangles by drawing a same-color border.
 #b Revised syntax for plot style 'with parallelaxes'. See `parallel`.
 ## The histogram, parallelaxis, and spiderplot styles now use similar syntax
 ## that can iterate over plot elements:
@@ -335,14 +372,14 @@ C
 #b Offsets from `set offsets` are applied only to autoscaled axes.
 ## The documentation has always said this, but it was not applied consistently.
 #b Imaginary values returned by the using specifier of a 2D plot are treated as
-##undefined values (NaN) rather than as real(value).  This was always true for
-##function plots and 3D data plots.  E.g. the following two plots are equivalent.
-##plot [-1:1] sqrt(x); plot [-1:1] '+' using 1:(sqrt($1)
+## undefined values (NaN) rather than as real(value).  This was always true for
+## function plots and 3D data plots.  E.g. the following two plots are equivalent.
+## plot [-1:1] sqrt(x); plot [-1:1] '+' using 1:(sqrt($1)
 #b The `set fontpath` command is deprecated. The search path for fonts to be
 ## embedded in output from the postscript terminal has been revised.
 #end
+
 3 Features introduced in version 5.2
-?Features introduced in version 5.2
 4 New plot styles and style options
 #start
 #b 3D plot style `with zerrorfill`. See `zerrorfill`, `fenceplots` and
@@ -387,7 +424,6 @@ C
 ## nonlinear axis where the paired functions are log(x) and exp(x).
 #end
 4 New commands and command options
-?new commands in 5.2
 #start
 #b Inside the bracketed clause of an iteration, `continue` jumps immediately
 ## to the next iteration, `break` immediately exits from the iteration
@@ -435,7 +471,7 @@ C
 #start
 #b An additional rotation angle `azimuth` affects the orientation of 3D plots.
 ## This can be set from the command line (see `set view azimuth`) or by dragging
-## with the right mouse button.
+## with the right mouse button. Hotkey `z` resets azimuth to 0.
 #b gnuplot running under Windows can interpret Unicode (BMP) input scripts by
 ## converting them to the current encoding from `set encoding`, including UTF-8
 #b Textboxes can be assigned a border color and fill color (see `set style textbox`)
@@ -455,7 +491,6 @@ C
 #end
 
 3 Features introduced in version 5.0
-?Features introduced in version 5.0
 #start
 #b The dot-dash pattern of a line can now be specified independent of other
 ## line properties. See `dashtype`, `set dashtype`, `set linetype`
@@ -1221,14 +1256,14 @@ C  need @ in table, so end and restart the table !
 ^<tr>    <td>abs(x)</td>    <td>any</td>    <td>|<i>x</i>|, absolute value of <i>x</i>; same type</td></tr>
 ^<tr>    <td>abs(x)</td>    <td>complex</td>    <td>length of <i>x</i>, &radic;( Re(<i>x</i>)<sup>2</sup> + Im(<i>x</i>)<sup>2</sup> )</td></tr>
 ^<tr>    <td>acos(x)</td>    <td>any</td>    <td>cos<sup>-1</sup> <i>x</i> (inverse cosine)</td></tr>
-^<tr>    <td>acosh(x)</td>    <td>any</td>    <td>cosh<sup>-1</sup> <i>x</i> (inverse hyperbolic cosine) in radians</td></tr>
+^<tr>    <td>acosh(x)</td>    <td>any</td>    <td>cosh<sup>-1</sup> <i>x</i> (inverse hyperbolic cosine) </td></tr>
 ^<tr>    <td>airy(x)</td>    <td>any</td>    <td>Airy function Ai(<i>x</i>)</td></tr>
 ^<tr>    <td>arg(x)</td>    <td>complex</td>    <td>the phase of <i>x</i></td></tr>
 ^<tr>    <td>asin(x)</td>    <td>any</td>    <td>sin<sup>-1</sup> <i>x</i> (inverse sin)</td></tr>
-^<tr>    <td>asinh(x)</td>    <td>any</td>    <td>sinh<sup>-1</sup> <i>x</i> (inverse hyperbolic sin) in radians</td></tr>
+^<tr>    <td>asinh(x)</td>    <td>any</td>    <td>sinh<sup>-1</sup> <i>x</i> (inverse hyperbolic sin) </td></tr>
 ^<tr>    <td>atan(x)</td>    <td>any</td>    <td>tan<sup>-1</sup> <i>x</i> (inverse tangent)</td></tr>
 ^<tr>    <td>atan2(y,x)</td>    <td>int or real</td>    <td>tan<sup>-1</sup>(<i>y/x</i>) (inverse tangent)</td></tr>
-^<tr>    <td>atanh(x)</td>    <td>any</td>    <td>tanh<sup>-1</sup> <i>x</i> (inverse hyperbolic tangent) in radians</td></tr>
+^<tr>    <td>atanh(x)</td>    <td>any</td>    <td>tanh<sup>-1</sup> <i>x</i> (inverse hyperbolic tangent) </td></tr>
 ^<tr>    <td>EllipticK(k)</td>    <td>real k in (-1:1)</td>    <td><i>K(k)</i> complete elliptic integral of the first kind</td></tr>
 ^<tr>    <td>EllipticE(k)</td>    <td>real k in [-1:1]</td>    <td><i>E(k)</i> complete elliptic integral of the second kind</td></tr>
 ^<tr>    <td>EllipticPi(n,k)</td>    <td> real n&lt;1, real k in (-1:1)</td>    <td> &Pi;(<i>n,k</i>) complete elliptic integral of the third kind</td></tr>
@@ -1243,7 +1278,7 @@ C  need @ in table, so end and restart the table !
 ^<tr>    <td>besin(n,x)</td>   <td>int,real</td><td>Modified Bessel function of order n, <i>x</i> in radians</td></tr>
 ^<tr>    <td>ceil(x)</td>    <td>any</td>    <td>&lceil;<i>x</i>&rceil;, smallest integer not less than <i>x</i> (real part)</td></tr>
 ^<tr>    <td>cos(x)</td>    <td>radians</td>    <td>cos <i>x</i>, cosine of <i>x</i></td></tr>
-^<tr>    <td>cosh(x)</td>    <td>any</td>    <td>cosh <i>x</i>, hyperbolic cosine of <i>x</i> in radians</td></tr>
+^<tr>    <td>cosh(x)</td>    <td>any</td>    <td>cosh <i>x</i>, hyperbolic cosine of <i>x</i> </td></tr>
 ^<tr>    <td>erf(x)</td>    <td>any</td>    <td>erf(Re(<i>x</i>)), error function of real(<i>x</i>)</td></tr>
 ^<tr>    <td>erfc(x)</td>    <td>any</td>    <td>erfc(Re(<i>x</i>)), 1.0 - error function of real(<i>x</i>)</td></tr>
 ^<tr>    <td>exp(x)</td>    <td>any</td>    <td><i>e<sup>x</sup></i>, exponential function of <i>x</i></td></tr>
@@ -1265,10 +1300,10 @@ C  need @ in table, so end and restart the table !
 ^<tr>    <td>real(x)</td>    <td>any</td>    <td>Re(<i>x</i>), real part of <i>x</i></td></tr>
 ^<tr>    <td>sgn(x)</td>    <td>any</td>    <td>1 if <i>x</i> &gt; 0,  -1 if <i>x</i> &lt; 0,  0 if <i>x</i> = 0. &image;(<i>x</i>) ignored</td></tr>
 ^<tr>    <td>sin(x)</td>    <td>any</td>    <td>sin <i>x</i>, sine of <i>x</i></td></tr>
-^<tr>    <td>sinh(x)</td>    <td>any</td>    <td>sinh <i>x</i>, hyperbolic sine of <i>x</i> in radians</td></tr>
+^<tr>    <td>sinh(x)</td>    <td>any</td>    <td>sinh <i>x</i>, hyperbolic sine of <i>x</i> </td></tr>
 ^<tr>    <td>sqrt(x)</td>    <td>any</td>    <td>&radic;<i>x</i>, square root of <i>x</i></td></tr>
 ^<tr>    <td>tan(x)</td>    <td>any</td>    <td>tan <i>x</i>, tangent of <i>x</i></td></tr>
-^<tr>    <td>tanh(x)</td>    <td>any</td>    <td>tanh <i>x</i>, hyperbolic tangent of <i>x</i> in radians</td></tr>
+^<tr>    <td>tanh(x)</td>    <td>any</td>    <td>tanh <i>x</i>, hyperbolic tangent of <i>x</i> </td></tr>
 ^<tr>    <td>voigt(x,y)</td>    <td>real</td>    <td>convolution of Gaussian and Lorentzian</td></tr>
 ^</tbody>
 ^</table>
@@ -1342,16 +1377,17 @@ C  need @ in table, so end and restart the table !
 ^<tr>    <td>palette(z)</td>    <td>double</td>    <td> RGB palette color mapped to z</td></tr>
 ^<tr>    <td>stringcolumn(x)</td>    <td>int</td>    <td> content column <i>x</i> as a string.</td></tr>
 ^<tr>    <td>timecolumn(N,format)</td>    <td>int, string</td>    <td> time data in column <i>N</i> during data input</td></tr>
-^<tr>    <td>tm_hour(x)</td>    <td>int</td>    <td>the hour</td></tr>
-^<tr>    <td>tm_mday(x)</td>    <td>int</td>    <td>the day of the month</td></tr>
-^<tr>    <td>tm_min(x)</td>    <td>int</td>    <td>the minute</td></tr>
-^<tr>    <td>tm_mon(x)</td>    <td>int</td>    <td>the month</td></tr>
-^<tr>    <td>tm_sec(x)</td>    <td>int</td>    <td>the second</td></tr>
-^<tr>    <td>tm_wday(x)</td>    <td>int</td>    <td>the day of the week</td></tr>
-^<tr>    <td>tm_yday(x)</td>    <td>int</td>    <td>the day of the year</td></tr>
-^<tr>    <td>tm_year(x)</td>    <td>int</td>    <td>the year</td></tr>
+^<tr>    <td>tm_hour(t)</td>    <td>time in sec</td>    <td>the hour</td></tr>
+^<tr>    <td>tm_mday(t)</td>    <td>time in sec</td>    <td>the day of the month</td></tr>
+^<tr>    <td>tm_min(t)</td>    <td>time in sec</td>    <td>the minute</td></tr>
+^<tr>    <td>tm_mon(t)</td>    <td>time in sec</td>    <td>the month</td></tr>
+^<tr>    <td>tm_sec(t)</td>    <td>time in sec</td>    <td>the second</td></tr>
+^<tr>    <td>tm_wday(t)</td>    <td>time in sec</td>    <td>the day of the week</td></tr>
+^<tr>    <td>tm_week(t)</td>    <td>time in sec</td>    <td>ISO 8601 week of year</td></tr>
+^<tr>    <td>tm_yday(t)</td>    <td>time in sec</td>    <td>the day of the year</td></tr>
+^<tr>    <td>tm_year(t)</td>    <td>time in sec</td>    <td>the year</td></tr>
 ^<tr>    <td>time(x)</td>    <td>any</td>    <td>the current system time</td></tr>
-^<tr>    <td>valid(x)</td>    <td>int</td>    <td> test validity of column(<i>x</i>) during datafile manip.</td></tr>
+^<tr>    <td>valid(x)</td>    <td>int</td>    <td> test validity of column <i>x</i> during datafile input</td></tr>
 ^<tr>    <td>value("name")</td>    <td>string</td>    <td> returns the current value of the named variable.</td></tr>
 ^</tbody>
 ^</table>
@@ -1395,10 +1431,10 @@ C marker below is used to signal this to doc2html:
 4 acosh
 ?expressions functions acosh
 ?acosh
-#acosh(x) & any  & $\cosh^{-1} x$ (inverse hyperbolic cosine) in radians \\
-%acosh(x)@any@$cosh sup -1 x$ (inverse hyperbolic cosine) in radians
+#acosh(x) & any  & $\cosh^{-1} x$ (inverse hyperbolic cosine) \\
+%acosh(x)@any@$cosh sup -1 x$ (inverse hyperbolic cosine) 
  The `acosh(x)` function returns the inverse hyperbolic cosine of its argument
- in radians.
+ in radians or degrees, as selected by `set angles`.
 4 airy
 ?expressions functions airy
 ?airy
@@ -1426,10 +1462,10 @@ C marker below is used to signal this to doc2html:
 4 asinh
 ?expressions functions asinh
 ?asinh
-#asinh(x) & any  & $\sinh^{-1} x$ (inverse hyperbolic sin) in radians \\
-%asinh(x)@any@$sinh sup -1 x$ (inverse hyperbolic sin) in radians
+#asinh(x) & any  & $\sinh^{-1} x$ (inverse hyperbolic sin) \\
+%asinh(x)@any@$sinh sup -1 x$ (inverse hyperbolic sin) 
  The `asinh(x)` function returns the inverse hyperbolic sin of its argument in
- radians.
+ radians or degress, as selected by `set angles`.
 4 atan
 ?expressions functions atan
 ?atan
@@ -1449,10 +1485,10 @@ C marker below is used to signal this to doc2html:
 4 atanh
 ?expressions functions atanh
 ?atanh
-#atanh(x) & any  & $\tanh^{-1} x$ (inverse hyperbolic tangent) in radians \\
-%atanh(x)@any@$tanh sup -1 x$ (inverse hyperbolic tangent) in radians
+#atanh(x) & any  & $\tanh^{-1} x$ (inverse hyperbolic tangent) \\
+%atanh(x)@any@$tanh sup -1 x$ (inverse hyperbolic tangent) 
  The `atanh(x)` function returns the inverse hyperbolic tangent of its
- argument in radians.
+ argument in radians or degrees, as selected by `set angles`.
 ?expressions functions EllipticK
 ?EllipticK
 4 EllipticK
@@ -1927,22 +1963,10 @@ C marker below is used to signal this to doc2html:
 %c c l .
 %Function@Arguments@Returns
 %_
-4 column
-?expressions functions column
-?column
-#column(x) & int or string & column $x$ during datafile manipulation. \\
-%column(x)@int or string@column $x$ during datafile manipulation.
- `column(x)` may be used only as part of a plot, splot, or stats command.
- It evaluates to the numerical value of the content of column x.
- See `plot datafile using`.
-4 columnhead
-?expressions functions columnhead
-?columnhead
+#column(x) & int or string & column $x$ during datafile input \\
+%column(x)@int or string@column $x$ during datafile input
 #columnhead(x) & int & string containing first entry of column $x$ in datafile. \\
 %columnhead(x)@int@string containing first entry of column $x$ in datafile.
- `columnhead(x)` may only be used as part of a plot, splot, or stats command.
- It evaluates to a string containing the content of column x in the first line
- of a data file. See `plot datafile using`.
 4 exists
 ?expressions functions exists
 ?exists
@@ -1966,110 +1990,90 @@ C marker below is used to signal this to doc2html:
 %palette(z)@double@RGB palette color mapped to z.
  `palette(z)` returns the RGB representation of the palette color mapped to z
   given the current extremes of cbrange.
-4 stringcolumn
-?expressions functions stringcolumn
-?stringcolumn
-?expressions functions strcol
-?strcol
+??
 #stringcolumn(x) & int or string & content of column $x$ as a string. \\
 %stringcolumn(x)@int or string@content column $x$ as a string.
- `stringcolumn(x)` may be used only in expressions as part of `using` manipulations
- to fits or datafile plots.  It returns the content of column x as a string variable.
- `strcol(x)` is shorthand for `stringcolumn(x)`.
- See `plot datafile using`.
-4 timecolumn
-?expressions functions timecolumn
-?timecolumn
 #timecolumn(N,"timeformat") & int, string & time data from column $N$ during data input. \\
 %timecolumn(N,"timeformat")@int, string@time data from column $N$ during data input.
- `timecolumn(N,"timeformat")` may be used only in expressions as part of `using`
- manipulations to fits or datafile plots.   See `plot datafile using`.
-
- It reads string data starting at column N as a time/date value and uses "timeformat"
- to interpret this as "seconds since the epoch" to millisecond precision.
- If no format parameter is given, the format defaults to the string from 
- `set timefmt`.
 4 tm_hour
 ?expressions functions tm_hour
 ?tm_hour
-#tm\_hour(x) & int & the hour \\
-%tm_hour(x)@int@the hour
- The `tm_hour(x)` function interprets its argument as a time, in seconds from
+#tm\_hour(t) & time in sec & the hour (0..23)\\
+%tm_hour(t)@time in sec@the hour (0..23)
+ The `tm_hour(t)` function interprets its argument as a time, in seconds from
  1 Jan 1970.  It returns the hour (an integer in the range 0--23) as a real.
 4 tm_mday
 ?expressions functions tm_mday
 ?tm_mday
-#tm\_mday(x) & int & the day of the month \\
-%tm_mday(x)@int@the day of the month
- The `tm_mday(x)` function interprets its argument as a time, in seconds from
+#tm\_mday(t) & time in sec & the day of the month (1..31)\\
+%tm_mday(t)@time in sec@the day of the month (1..31)
+ The `tm_mday(t)` function interprets its argument as a time, in seconds from
  1 Jan 1970.  It returns the day of the month (an integer in the range 1--31)
  as a real.
 4 tm_min
 ?expressions functions tm_min
 ?tm_min
-#tm\_min(x) & int & the minute \\
-%tm_min(x)@int@the minute
- The `tm_min(x)` function interprets its argument as a time, in seconds from
+#tm\_min(t) & time in sec & the minute (0..59)\\
+%tm_min(t)@time in sec@the minute (0..59)
+ The `tm_min(t)` function interprets its argument as a time, in seconds from
  1 Jan 1970.  It returns the minute (an integer in the range 0--59) as a real.
 4 tm_mon
 ?expressions functions tm_mon
 ?tm_mon
-#tm\_mon(x) & int & the month \\
-%tm_mon(x)@int@the month
- The `tm_mon(x)` function interprets its argument as a time, in seconds from
+#tm\_mon(t) & time in sec & the month (0..11)\\
+%tm_mon(t)@time in sec@the month (0..11)
+ The `tm_mon(t)` function interprets its argument as a time, in seconds from
  1 Jan 1970.  It returns the month (an integer in the range 0--11) as a real.
 4 tm_sec
 ?expressions functions tm_sec
 ?tm_sec
-#tm\_sec(x) & int & the second \\
-%tm_sec(x)@int@the second
- The `tm_sec(x)` function interprets its argument as a time, in seconds from
+#tm\_sec(t) & time in sec & the second (0..59)\\
+%tm_sec(t)@time in sec@the second (0..59)
+ The `tm_sec(t)` function interprets its argument as a time, in seconds from
  1 Jan 1970.  It returns the second (an integer in the range 0--59) as a real.
 4 tm_wday
 ?expressions functions tm_wday
 ?tm_wday
-#tm\_wday(x) & int & the day of the week \\
-%tm_wday(x)@int@the day of the week
- The `tm_wday(x)` function interprets its argument as a time, in seconds from
- 1 Jan 1970.  It returns the day of the week (an integer in the range 0--6) as
- a real.
+#tm\_wday(t) & time in sec & the day of the week (Sun..Sat) as (0..6)\\
+%tm_wday(t)@time in sec@the day of the week (Sun..Sat) as (0..6)
+ The `tm_wday(t)` function interprets its argument as a time, in seconds from
+ 1 Jan 1970.  It returns the day of the week (Sun..Sat) as an integer (0..6).
+4 tm_week
+#tm\_week(t) & time in sec & week of year in ISO8601 "week date" system (1..53)\\
+%tm_week(t)@time in sec@ISO 8601 week of year in ISO8601 "week date" system (1..53)
 4 tm_yday
 ?expressions functions tm_yday
 ?tm_yday
-#tm\_yday(x) & int & the day of the year \\
-%tm_yday(x)@int@the day of the year
- The `tm_yday(x)` function interprets its argument as a time, in seconds from
- 1 Jan 1970.  It returns the day of the year (an integer in the range 1--366)
+#tm\_yday(t) & time in sec & the day of the year (0..365)\\
+%tm_yday(t)@time in sec@the day of the year (0..365)
+ The `tm_yday(t)` function interprets its argument as a time, in seconds from
+ 1 Jan 1970.  It returns the day of the year (an integer in the range 0--365)
  as a real.
 4 tm_year
 ?expressions functions tm_year
 ?tm_year
-#tm\_year(x) & int & the year \\
-%tm_year(x)@int@the year
- The `tm_year(x)` function interprets its argument as a time, in seconds from
+#tm\_year(t) & time in sec & the year \\
+%tm_year(t)@time in sec@the year
+ The `tm_year(t)` function interprets its argument as a time, in seconds from
  1 Jan 1970.  It returns the year (an integer) as a real.
 4 time
 ?expressions functions time
 ?time
-#time(x) & any & the current system time \\
-%time(x)@any@the current system time
+?epoch
+#time(x) & any & the current system time in seconds \\
+%time(x)@any@the current system time in seconds
  The `time(x)` function returns the current system time. This value can be
  converted to a date string with the `strftime` function, or it can be used
  in conjunction with `timecolumn` to generate relative time/date plots.
  The type of the argument determines what is returned. If the argument is an
  integer, time() returns the current time as an integer, in seconds from
- 1 Jan 1970. If the argument is real (or complex), the result is real as well.
- If the argument is a string, it is assumed to be a format string,
- and it is passed to `strftime` to provide a formatted time string.
- See also `time_specifiers` and `timefmt`.
-4 valid
-?expressions functions valid
-?valid
-#valid(x) & int & test validity of $\mbox{column}(x)$ during datafile manip.\\
-%valid(x)@int@test validity of column($x$) during datafile manip.
- `valid(x)` may be used only in expressions as part of `using` manipulations
- to fits or datafile plots.  See `plot datafile using`.
-
+ the epoch start, 1 Jan 1970.  If the argument is real the result is also
+ real and may include fractional seconds.  If the argument is a string,
+ it is assumed to be a format and  is passed to `strftime` to provide a
+ formatted time string.  See also `time_specifiers` and `timefmt`.
+??
+#valid(x) & int & test validity of $\mbox{column}(x)$ during datafile input\\
+%valid(x)@int@test validity of column($x$) during datafile input
 #value("name") & string & returns the value of the named variable.\\
 %value("name")@string@returns the current value of the named variable.
 4 voxel
@@ -2116,6 +2120,70 @@ C marker below is used to signal this to doc2html:
                    to x.
        rand({x,y}) for integer 0 < x,y < 2^31-1 sets seed1 to x and
                    seed2 to y.
+
+4 using specifier functions
+ These functions are valid only in the context of data input.  Usually this
+ means use in an expression that provides an input field of the `using`
+ specifier in a `plot`, `splot`, `fit`, or `stats` command.  However the
+ scope of the functions is actually the full clause of the plot command,
+ including for example use of `columnhead` in constructing the plot title.
+
+5 column
+?expressions functions column
+?column
+ The `column(x)` function may be used only in the `using` specifier
+ of a plot, splot, fit, or stats command.
+ It evaluates to the numerical value of the content of column x.
+ If the column is expected to hold a string, use instead stringcolumn(x)
+ or timecolumn(x, "timeformat").
+ See `plot datafile using`, `stringcolumn`, `timecolumn`.
+5 columnhead
+?expressions functions columnhead
+?columnhead
+ The `columnhead(x)` function may only be used as part of a plot, splot,
+ or stats command.  It evaluates to a string containing the content of
+ column x in the first line of a data file.  This is typically used to
+ extract the column header for use in a plot title.
+ See `plot datafile using`.
+ Example:
+      set datafile columnheader
+      plot for [i=2:4] DATA using 1:i title columnhead(i)
+5 stringcolumn
+?expressions functions stringcolumn
+?stringcolumn
+?expressions functions strcol
+?strcol
+ The `stringcolumn(x)` function may be used only in the `using` specification
+ of a data plot or `fit` command.  It returns the content of column x as a
+ string.  `strcol(x)` is shorthand for `stringcolumn(x)`.
+ If the string is to be interpreted as a time or date, use instead
+ timecolumn(x, "timeformat").  See `plot datafile using`.
+5 timecolumn
+?expressions functions timecolumn
+?timecolumn
+ `timecolumn(N,"timeformat")` reads string data starting at column N as a time/date
+ value and uses "timeformat" to interpret this as "seconds since the epoch" to
+ millisecond precision.  If no format parameter is given, the format defaults
+ to the string from `set timefmt`.  This function is valid only in the `using`
+ specification of a plot or stats command.  See `plot datafile using`.
+5 valid
+?expressions functions valid
+?valid
+ The `valid(x)` function may be used only in expressions that are part of a
+ `using` specification.  It can be used to detect explicit NaN values or
+ unexpected garbage in a field of the input stream, perhaps to substitute
+ a default value or to prevent further arithmetic operations using NaN.
+ Both "missing" and NaN (not-a-number) data values are considered to be
+ invalid, but it is important to note that if the program recognizes that a
+ field is truly missing or contains a "missing" flag then the input line is
+ discarded before the expression invoking valid() would be called.
+ See `plot datafile using`, `missing`.
+
+ Example:
+      # Treat an unrecognized bin value as contributing some constant
+      # prior expectation to the bin total rather than ignoring it.
+      plot DATA using 1 : (valid(2) ? $2 : prior) smooth unique
+
 4 value
 ?expressions functions value
 ?value
@@ -3310,6 +3378,36 @@ Ffigure_newsyntax
  In `splot`, control over the scales and labels of the axes are the same as
  with `plot` except that there is also a z axis and labeling the x2 and y2 axes
  is possible only for pseudo-2D plots created using `set view map`.
+2 Plugins
+?plugins
+?uigamma
+ The set of functions available for plotting or for evaluating expressions
+ can be extended through a plugin mechanism that imports executable functions
+ from a shared library.  For example, gnuplot versions through 5.4 do not
+ provide a built-in implementation of the upper incomplete gamma function
+ Q(a,x).
+#TeX \\ $Q(a,x)=\frac{1}{\Gamma(x)}\intop_{x}^{\infty}t^{a-1}e^{-t}dt$ .\quad\quad
+ You could define an approximation directly in gnuplot like this:
+       Q(a,x) = 1. - igamma(a,x)
+ However this has inherently limited precision as igamma(a,x) approaches 1.
+ If you need a more accurate implementation, it would be better to provide one
+ via a plugin (see below).  Once imported, the function can be used just as any
+ other built-in or user-defined function in gnuplot.
+ See `import`.
+
+ The gnuplot distribution includes source code and instructions for creating
+ a plugin library in the directory demo/plugin.  You can modify the simple
+ example file `demo_plugin.c` by replacing one or more of the toy example
+ functions with an implementation of the function you are interested in.
+ This could include invocation of functions from an external mathematical
+ library.
+
+ The demo/plugin directory also contains source for a plugin that implements
+ Q(a,x). As noted above, this plugin allows earlier versions of gnuplot to
+ provide the same function `uigamma` as the current development version.
+      import Q(a,x) from "uigamma_plugin"
+      uigamma(a,x) = ((x<1 || x<a) ? 1.0-igamma(a,x) : Q(a,x))
+
 2 Start-up (initialization)
 ?startup
 ?start
@@ -4241,8 +4339,16 @@ Ffigure_fsteps
 ?style fillsteps
 ?with fillsteps
 ?fillsteps
- The `fillsteps` style is exactly like `steps` except that the area between
- the curve and y=0 is filled in the current fill style.  See `steps`.
+      plot <data> with fillsteps [above|below] [y=<baseline>]
+
+Ffigure_steps
+ The `fillsteps` style is only relvant to 2D plotting.
+ It is exactly like the style `steps` except that the area between
+ the curve and the baseline (default y=0)  is filled in the current fill style.
+ The options `above` and `below` fill only the portion to one side of the
+ baseline. Note that in moving from one data point to the next, both `steps`
+ and `fillsteps` first trace the change in x coordinate and then the change
+ in y coordinate.  See `steps`.
 2 histeps
 ?plotting styles histeps
 ?style histeps
@@ -4336,6 +4442,10 @@ Ffigure_histeps
  Histograms always use the x1 axis, but may use either y1 or y2.
  If a plot contains both histograms and other plot styles, the non-histogram
  plot elements may use either the x1 or the x2 axis.
+
+ One additional style option `set style histogram nokeyseparators`
+ is relevant only to plots that contain multiple histograms.
+ See `newhistogram` for additional discussion of this case.
 
  Examples:
 Ffigure_histclust
@@ -4432,6 +4542,12 @@ Ffigure_histcols
  Similarly you can force the next histogram to begin with a specified fillstyle.
  If the fillstyle is set to `pattern`, then the pattern used for filling will
  be incremented automatically.
+
+ Starting a new histogram will normally add a blank entry to the key, so that
+ titles from this set of histogram components will be separated from those of
+ the previous histogram.  This blank line may be undesirable if the components
+ have no individual titles.  It can be suppressed by modifying the style with
+ `set style histogram nokeyseparators`.
 
 Ffigure_newhist
  The `at <x-coord>` option sets the x coordinate position of the following
@@ -4890,20 +5006,21 @@ Ffigure_vectors
       4 columns:  x  y  xdelta  ydelta
       6 columns:  x  y  z  xdelta  ydelta  zdelta
 
- The keywords "with vectors" may be followed by an inline arrow style
- specifications, a reference to a predefined arrow style, or a request to read
- the index of the desired arrow style for each vector from a separate column.
- Note: If you choose "arrowstyle variable" it will fill in all arrow properties
- at the time the corresponding vector is drawn; you cannot mix this keyword with
- other line or arrow style qualifiers in the plot command.
+ The keywords "with vectors" may be followed by inline arrow style properties,
+ by reference to a predefined arrow style, or by a request to read the index
+ of the desired arrow style for each vector from a separate input column.
+ See the first three examples below.
 
-      plot ... with vectors filled heads
-      plot ... with vectors arrowstyle 3
+ Examples:
+
+      plot ... using 1:2:3:4 with vectors filled heads
+      plot ... using 1:2:3:4 with vectors arrowstyle 3
       plot ... using 1:2:3:4:5 with vectors arrowstyle variable
+      splot 'file.dat' using 1:2:3:(1):(1):(1) with vectors filled head lw 2
 
- Example:
-       plot 'file.dat' using 1:2:3:4 with vectors head filled lt 2
-       splot 'file.dat' using 1:2:3:(1):(1):(1) with vectors filled head lw 2
+ Notes:  You cannot mix the `arrowstyle` keyword with other line style
+ qualifiers in the plot command. An additional column of color values is
+ required if the arrow style includes `lc variable` or `lc rgb variable`.
 
  splot with vectors is supported only for `set mapping cartesian`.
  `set clip one` and `set clip two` affect vectors drawn in 2D.
@@ -4927,8 +5044,7 @@ Ffigure_xerrorbars
       3 columns:  x  y  xdelta
       4 columns:  x  y  xlow  xhigh
 
- An additional input column (4th or 5th) may be used to provide information
- such as variable point color.
+ An additional input column (4th or 5th) may be used to provide variable color.
 
 2 xyerrorbars
 ?plotting styles xyerrorbars
@@ -4971,14 +5087,15 @@ Ffigure_yerrorbars
  At each point (x,y), a line is drawn from (x,y-ydelta) to (x,y+ydelta) or
  from (x,ylow) to (x,yhigh), depending on how many data columns are provided.
  The appearance of the tic mark at the ends of the bar is controlled by
- `set errorbars`.
+ `set errorbars`.  The clearance between the point and the error bars is
+ controlled by `set pointintervalbox`.
 
       2 columns:  [implicit x] y ydelta
       3 columns:  x  y  ydelta
       4 columns:  x  y  ylow  yhigh
 
- An additional input column (4th or 5th) may be used to provide information
- such as variable point color.
+ Additional input columns may be used to provide information such as variable
+ point size, point type, or color.
 
  See also
 ^ <a href="http://www.gnuplot.info/demo/mgr.html">
@@ -5000,8 +5117,7 @@ Ffigure_xerrorlines
       3 columns:  x  y  xdelta
       4 columns:  x  y  xlow  xhigh
 
- An additional input column (4th or 5th) may be used to provide information
- such as variable point color.
+ An additional input column (4th or 5th) may be used to provide variable color.
 
 2 xyerrorlines
 ?plotting styles xyerrorlines
@@ -6115,7 +6231,7 @@ Ffigure_zerror
 ?import
  The `import` command associates a user-defined function name with a function
  exported by an external shared object.  This constitutes a plugin mechanism
- that extends the set of functions available in gnuplot.
+ that extends the set of functions available in gnuplot. See `plugins`.
 
  Syntax:
        import func(x[,y,z,...]) from "sharedobj[:symbol]"
@@ -6184,7 +6300,6 @@ Ffigure_zerror
  <time> may be any constant or floating-point expression.  `pause -1` will wait
  until a carriage return is hit, zero (0) won't pause at all, and a positive
  number will wait the specified number of seconds.
- `pause 0` is synonymous with `print`.
 
  If the current terminal supports `mousing`, then `pause mouse` will terminate
  on either a mouse click or on ctrl-C.  For all other terminals, or if mousing
@@ -6711,6 +6826,7 @@ Ffigure_zerror
  Syntax:
       plot 'DATA' using <XCOL> {:<YCOL>} bins{=<NBINS>}
            {binrange [<LOW>:<HIGH>]} {binwidth=<width>}
+           {binvalue={sum|avg}
 
  The `bins` option to a `plot` command first assigns the original data to
  equal width bins on x and then plots a single value per bin.  The default
@@ -6744,6 +6860,10 @@ Ffigure_zerror
       plot 'DATA" using N bins=20
       set samples 20
       plot 'DATA' using (column(N)):(1)
+
+ The y value plotted for each bin is the sum of the y values over all
+ points in that bin.  This corresponds to `binvalue=sum`.
+ EXPERIMENTAL: `binvalue=avg` instead plots the mean y value for that bin.
 
  For related plotting styles see `smooth frequency` and `smooth kdensity`.
 4 columnheaders
@@ -7233,7 +7353,7 @@ Ffigure_zerror
  huge number of points so that the distribution of high-scoring points
  remains evident. Sorting the points on z guarantees that points with
  a high z-value will not be obscured by points with lower z-values.
- Limited to plot style "with points".
+ Limited to plot styles "with points" and "with linespoints".
 
 4 special-filenames
 ?special-filenames
@@ -7377,8 +7497,14 @@ Ffigure_zerror
  If the entry is an expression in parentheses, then the function column(N) may
  be used to indicate the value in column N. That is, column(1) refers to the
  first item read, column(2) to the second, and so on.  The special symbols
- $1, $2, ... are shorthand for column(1), column(2) ...  The function `valid(N)`
- tests whether the value in the Nth column is a valid number.
+ $1, $2, ... are shorthand for column(1), column(2) ...
+
+ The special symbol $# evaluates to the total number of columns in the current
+ line of input, so column($#) or stringcolumn($#) always returns the content of
+ the final column even if the number of columns is unknown or different lines
+ in the file contain different numbers of columns.
+
+ The function `valid(N)` tests whether column N contains a valid number.
 =column
 =columnheader
  If each column of data in the input file contains a label in the first row
@@ -7500,6 +7626,10 @@ Ffigure_zerror
        column(-2)  Starts at 0 and increments on two sequential blank lines.
                    This is the index number of the current data set within a
                    file that contains multiple data sets.  See `index`.
+       column($#)  The special symbol $# evaluates to the total number of
+                   columns available, so column($#) refers to the last
+                   (rightmost) field in the current input line.
+                   column($# - 1) would refer to the last-but-one column, etc.
 5 key
 ?using key
 ?plot using key
@@ -8154,15 +8284,25 @@ Ffigure_zerror
 2 print
 ?commands print
 ?print
- The `print` command prints the value of <expression> to the screen.  It is
- synonymous with `pause 0`.  <expression> may be anything that `gnuplot` can
- evaluate that produces a number, or it can be a string.
-
  Syntax:
        print <expression> {, <expression>, ...}
 
- See `expressions`.  The output file can be set with `set print`.
- See also `printerr`.
+ The `print` command prints the value of one or more expressions.
+ Output is to the screen unless it has been redirected using a prior
+ `set print` command.  See `expressions`.  See also `printerr`.
+
+ An <expression> may be any valid gnuplot expression, including numeric
+ or string constants, a function returning a number or string, an array,
+ or the name of a variable.  It is also possible to print a datablock.
+ The sprintf and gprintf functions can be used in conjunction with `print`
+ for additional flexibility in formmating output.
+
+ Examples:
+      print 123 + 456
+      print sinh(pi/2)
+      print "rms of residuals (FIT_STDFIT) is ", FIT_STDFIT
+      print sprintf("rms of residuals is %.3f after fit.", FIT_STDFIT)
+      print $DATA
 2 printerr
 ?commands printerr
 ?printerr
@@ -8528,30 +8668,30 @@ Ffigure_zerror
  `noautoscale`.  See `datafile`.
 
  Syntax:
-       set autoscale {<axes>{|min|max|fixmin|fixmax|fix} | fix | keepfix}
+       set autoscale {<axis>{|min|max|fixmin|fixmax|fix} | fix | keepfix}
        set autoscale noextend
-       unset autoscale {<axes>}
+       unset autoscale {<axis>}
        show autoscale
 
- where <axes> is either `x`, `y`, `z`, `cb`, `x2`, `y2`, `xy`, or `paxis {n}`.
- A keyword with `min` or `max` appended (this cannot be done with `xy`) tells
- `gnuplot` to autoscale just the minimum or maximum of that axis.
- If no keyword is given, all axes are autoscaled.
+ where <axis> is `x`, `y`, `z`, `cb`, `x2`, `y2`, `xy`, or `paxis <p>`.
+ Appending `min` or `max` to the axis name tells `gnuplot` to autoscale only
+ the minimum or maximum of that axis.
 
- When autoscaling, the axis range is automatically computed and the dependent
- axis (y for a `plot` and z for `splot`) is scaled to include the range of the
- function or data being plotted.
+ If no axis name is given, all axes are autoscaled.
 
- If autoscaling of the dependent axis (y or z) is not set, the current y or z
- range is used.
+ Autoscaling the independent axes (x for `plot` and x,y for `splot`) adjusts
+ the axis range to match the data being plotted.  If the plot contains only
+ functions (no input data), autoscaling these axes has no effect.
 
- Autoscaling the independent variables (x for `plot` and x,y for `splot`) is a
- request to set the domain to match any data file being plotted.  If there are
- no data files, autoscaling an independent variable has no effect.  In other
- words, in the absence of a data file, functions alone do not affect the x
- range (or the y range if plotting z = f(x,y)).
+ Autoscaling the dependent axis (y for a `plot` and z for `splot`) adjusts the
+ axis range to match the data or function being plotted.
 
- Please see `set xrange` for additional information about ranges.
+ Adjustment of the axis range includes extending it to the next tic mark;
+ i.e. unless the extreme data coordinate exactly matches a tic mark, there
+ will be some blank space between the data and the plot border.
+ Addition of this extra space can be suppressed by `noextend`.
+ It can be further increased by the command `set offset`.
+ Please see `set xrange` and `set offsets` for additional information.
 
  The behavior of autoscaling remains consistent in parametric mode, (see
  `set parametric`).  However, there are more dependent variables and hence more
@@ -8570,6 +8710,7 @@ Ffigure_zerror
 ?set autoscale noextend
 ?set autoscale keepfix
 ?set autoscale fix
+?autoscale noextend
 ?noextend
 ?keepfix
 ?fix
@@ -9547,19 +9688,19 @@ Ffigure_missing
  row/col_size parameters is created for plotting and contouring.  The grid
  is equally spaced in x (rows) and in y (columns); the z values are computed
  as weighted averages or spline interpolations of the scattered points' z
- values. In other words, a regularly spaced grid is created and the a smooth
- approximation to the raw data is evaluated for all grid points. This
- approximation is plotted in place of the raw data.
+ values. In other words, a regularly spaced grid is created and then a smooth
+ approximation to the raw data is evaluated for each grid point.
+ This approximation is plotted in place of the raw data.
 
  The number of columns defaults to the number of rows, which defaults to 10.
 
  Several algorithms are available to calculate the approximation from the
  raw data. Some of these algorithms can take additional parameters.
- These interpolations are such the closer the data point is to a grid point,
- the more effect it has on that grid point.
+ These interpolations are such that the closer the data point is to a grid
+ point, the more effect it has on that grid point.
 
- The `splines` algorithm calculates an interpolation based on "thin plate
- splines". It does not take additional parameters.
+ The `splines` algorithm calculates an interpolation based on thin plate
+ splines. It does not take additional parameters.
 
  The `qnorm` algorithm calculates a weighted average of the input data at
  each grid point. Each data point is weighted by the inverse of its distance
@@ -9601,10 +9742,10 @@ Ffigure_missing
  function (one of the five defined above) is placed at each data point,
  the sum of these kernels is evaluated at every grid point, and this smooth
  surface is plotted instead of the original data. This is similar in
- principle to + what the `smooth kdensity` option does to 1D datasets.
+ principle to what the `smooth kdensity` option does to 1D datasets.
  (See kdensity2d.dem for usage demo)
 
- A slightly different syntax is also supported for reasons of backwards
+ DEPRECATED: A slightly different syntax is also supported for backwards
  compatibility. If no interpolation algorithm has been explicitly selected,
  the `qnorm` algorithm is assumed. Up to three comma-separated, optional
  parameters can be specified, which are interpreted as the the number of
@@ -9615,13 +9756,13 @@ Ffigure_missing
  to this problem exist and should be used to preprocess the data outside
  `gnuplot` if this simple solution is found inadequate.
 
- See also
+ See also the online
 ^ <a href="http://www.gnuplot.info/demo/dgrid3d.html">
- dgrid3d.dem: dgrid3d demo.
+ dgrid3d demo
 ^ </a>
  and
 ^ <a href="http://www.gnuplot.info/demo/scatter.html">
- scatter.dem: dgrid3d demo.
+ scatter demo
 ^ </a>
 
 3 dummy
@@ -10102,9 +10243,9 @@ Ffigure_missing
        %s           number of seconds since the start of year 1970
        %S           second, integer 00--60 on output, (double) on input
        %T           shorthand for "%H:%M:%S" (only output)
-       %U           week of the year (week starts on Sunday)
+       %U           week of the year (CDC/MMWR "epi week") (ignored on input)
        %w           day of the week, 0--6 (Sunday = 0) (ignored on input)
-       %W           week of the year (week starts on Monday) (ignored on input)
+       %W           week of the year (ISO 8601 week date) (ignored on input)
        %y           year, 0-68 for 2000-2068, 69-99 for 1969-1999
        %Y           year, 4-digit
        %z           timezone, [+-]hh:mm
@@ -10133,9 +10274,9 @@ Ffigure_missing
 #\verb@%S@ & second, integer 00--60 on output, (double) on input\\
 #\verb@%s@ & number of seconds since start of year 1970 \\
 #\verb@%T@ & shorthand for \verb@"%H:%M:%S"@ (only output)\\
-#\verb@%U@ & week of the year (week starts on Sunday) \\
+#\verb@%U@ & week of the year (CDC/MMWR "epi week") (ignored on input)\\
 #\verb@%w@ & day of the week, 0--6 (Sunday = 0) \\
-#\verb@%W@ & week of the year (week starts on Monday) \\
+#\verb@%W@ & week of the year (ISO 8601 week date) (ignored on input)\\
 #\verb@%y@ & year, 0-99 in range 1969-2068\\
 #\verb@%Y@ & year, 4-digit \\
 #\verb@%z@ & timezone, [+-]hh:mm \\
@@ -10163,9 +10304,9 @@ Ffigure_missing
 %%S@second, integer 0--60 on output, (double) on input
 %%s@number of seconds since start of year 1970
 %%T@shorthand for "%H:%M:%S" (only output)
-%%U@week of the year (week starts on Sunday)
+%%U@week of the year (CDC/MMWR "epi week")
 %%w@day of the week, 0--6 (Sunday = 0)
-%%W@week of the year (week starts on Monday)
+%%W@week of the year (ISO 8601 week date)
 %%y@year, 0-99 in range 1969-2068
 %%Y@year, 4-digit
 %%z@timezone, [+-]hh:mm
@@ -10202,15 +10343,21 @@ Ffigure_missing
 ^<tr>    <td><tt>%S</tt></td>    <td>second, integer 0&ndash;60 on output, (double) on input</td></tr>
 ^<tr>    <td><tt>%s</tt></td>    <td>number of seconds since start of year 1970</td></tr>
 ^<tr>    <td><tt>%T</tt></td>    <td>shorthand for <tt>%H:%M:%S</tt> (only output)</td></tr>
-^<tr>    <td><tt>%U</tt></td>    <td>week of the year (week starts on Sunday)</td></tr>
+^<tr>    <td><tt>%U</tt></td>    <td>week of the year (CDC/MMWR "epi week")</td></tr>
 ^<tr>    <td><tt>%w</tt></td>    <td>day of the week, 0&ndash;6 (Sunday = 0)</td></tr>
-^<tr>    <td><tt>%W</tt></td>    <td>week of the year (week starts on Monday)</td></tr>
+^<tr>    <td><tt>%W</tt></td>    <td>week of the year (ISO 8601 week date)</td></tr>
 ^<tr>    <td><tt>%y</tt></td>    <td>year, 0-99 in range 1969-2068</td></tr>
 ^<tr>    <td><tt>%Y</tt></td>    <td>year, 4-digit</td></tr>
 ^<tr>    <td><tt>%z</tt></td>    <td>timezone, [+-]hh:mm</td></tr>
 ^<tr>    <td><tt>%Z</tt></td>    <td>timezone name, ignored string</td></tr>
 ^</tbody>
 ^</table>
+
+ For more information on the %W format (ISO week of year) see `tm_week`.
+ The %U format (CDC/MMWR epidemiological week) is similar to %W except that it
+ uses weeks that start on Sunday rather than Monday.
+ Caveat: Both the %W and the %U formats were unreliable in gnuplot versions
+ prior to 5.4.2.  See unit test "week_date.dem".
 
  The relative time formats express the length of a time interval on either
  side of a zero time point.  The relative time formats are
@@ -10292,6 +10439,78 @@ Ffigure_missing
        set format x "%.2tH hours"   # "-1.02 hours"
        set format x "%tM:%.2tS"     # "-61:12.50"
 
+4 tm_week
+?expressions functions tm_week
+?functions tm_week
+?time_specifiers tm_week
+?tm_week
+?epidemiological week
+=epidemiological week
+ The `tm_week(t, standard)` function interprets its first argument t as a time
+ in seconds from 1 Jan 1970.  Despite the name of this function it does not
+ report a field from the POSIX tm structure.
+
+ If standard = 0 it returns the week number in the ISO 8601 "week date" system.
+ This corresponds to gnuplot's %W time format.
+ If standard = 1 it returns the CDC epidemiological week number ("epi week").
+ This corresponds to gnuplot's %U time format.
+ For corresponding inverse functions that convert week dates to calendar time
+ see `weekdate_iso`, `weekdate_cdc`.
+
+ In brief, ISO Week 1 of year YYYY begins on the Monday closest to 1 Jan YYYY.
+ This may place it in the previous calendar year.  For example Tue 30 Dec 2008
+ has ISO week date 2009-W01-2 (2nd day of week 1 of 2009).  Up to three days
+ at the start of January may come before the Monday of ISO week 1;
+ these days are assigned to the final week of the previous calendar year.
+ E.g. Fri 1 Jan 2021 has ISO week date 2020-W53-5.
+
+ The US Center for Disease Control (CDC) epidemiological week is a similar
+ week date convention that differs from the ISO standard by defining a week as
+ starting on Sunday, rather than on Monday.
+
+4 weekdate_iso
+?expressions functions weekdate_iso
+?functions weekdate_iso
+?time_specifiers weekdate_iso
+?weekdate_iso
+ Syntax:
+      time = weekdate_iso( year, week [, day] )
+
+ This function converts from the year, week, day components of a date in
+ ISO 8601 "week date" format to the calendar date as a time in seconds since
+ the epoch date 1 Jan 1970.  Note that the nominal year in the week date
+ system is not necessarily the same as the calendar year.  The week is an
+ integer from 1 to 53.  The day parameter is optional. If it is omitted
+ or equal to 0 the time returned is the start of the week. Otherwise day
+ is an integer from 1 (Monday) to 7 (Sunday).
+ See `tm_week` for additional information on an inverse function that converts
+ from calendar date to week number in the ISO standard convention.
+
+ Example:
+      # Plot data from a file with column 1 containing ISO weeks
+      #     Week     cases  deaths
+      #     2020-05    432       1
+      calendar_date(w) = weekdate_iso( int(w[1:4]), int(w[6:7]) )
+      set xtics time format "%b\n%Y"
+      plot FILE using (calendar_date(strcol(1))) : 2   title columnhead
+
+4 weekdate_cdc
+?expressions functions weekdate_cdc
+?functions weekdate_cdc
+?time_specifiers weekdate_cdc
+?weekdate_cdc
+=epidemiological week
+ Syntax:
+      time = weekdate_cdc( year, week [, day] )
+
+ This function converts from the year, week, day components of a date in
+ the CDC/MMWR "epi week" format to the calendar date as a time in seconds since
+ the epoch date 1 Jan 1970.  The CDC week date convention differs from the
+ ISO week date in that it is defined in terms of each week running from
+ day 1 = Sunday to day 7 = Saturday.  If the third parameter is 0 or is
+ omitted, the time returned is the start of the week.
+ See `tm_week` and `weekdate_iso`.
+
 3 function style
 ?set function style
  This form of the command is deprecated. Please use `set style function`.
@@ -10314,6 +10533,7 @@ Ffigure_missing
 ^ <a href="http://www.gnuplot.info/demo/airfoil.html">
  use of functions and complex variables for airfoils (airfoil.dem).
 ^ </a>
+
 3 grid
 ?commands set grid
 ?commands unset grid
@@ -10644,7 +10864,7 @@ Ffigure_missing
              {left | right | center} {top | bottom | center}
              {vertical | horizontal} {Left | Right}
              {{no}enhanced}
-             {{no}opaque}
+             {{no}opaque {fc <colorspec>}}
              {{no}reverse} {{no}invert}
              {samplen <sample_length>} {spacing <line_spacing>}
              {width <width_increment>} {height <height_increment>}
@@ -10686,8 +10906,8 @@ Ffigure_missing
  title are drawn at the same time as the corresponding plot.  That means newer
  plots may sometimes place elements on top of the key.  `set key opaque` causes
  the key to be generated after all the plots.  In this case the key area is
- filled with background color and then the key symbols and titles are written.
- Therefore the key itself may obscure portions of some plot elements.
+ filled with background color or the requested fill color and then the key
+ symbols and titles are written.
  The default can be restored by `set key noopaque`.
 
  By default the first plot label is at the top of the key and successive labels
@@ -12123,9 +12343,12 @@ Ffigure_multiple_keys
 ?show offsets
 ?offsets
 ?nooffsets
- Offsets provide a mechanism to put an empty boundary around the data inside
- an autoscaled graph.  The offsets only affect the x1 and y1 axes, and only in
- 2D `plot` commands.
+ Autoscaling sets the x and y axis ranges to match the coordinates of the data
+ that is plotted.  Offsets provide a mechanism to expand these ranges to leave
+ empty space between the data and the plot borders.  Autoscaling then further
+ extends each range to reach the next axis tic unless this has been suppressed
+ by `set autoscale noextend` or `set xrange noextend`.  See `noextend`.
+ Offsets affect only scaling for the x1 and y1 axes.
 
  Syntax:
        set offsets <left>, <right>, <top>, <bottom>
@@ -12142,18 +12365,15 @@ Ffigure_multiple_keys
  a positive bottom offset makes ymin more negative.  Negative offsets interact
  badly with autoscaling and clipping.
 
- To prevent the auto-scaling from further adjusting your axis ranges, it is
- useful to also specify "set auto fix" or "set xrange noextend".
-
  Example:
-       set auto fix
+       set autoscale noextend
        set offsets graph 0.05, 0, 2, 2
        plot sin(x)
 
- This graph of sin(x) will have a y range [-3:3] because the function
- will be autoscaled to [-1:1] and the vertical offsets are each two.
- The x range will be [-11:10] because the default is [-10:10] and it has
- been expanded to the left by 0.05 of that total range.
+ This graph of sin(x) will have y range [-3:3] because the function will be
+ autoscaled to [-1:1] and the vertical offsets add 2 at each end of the range.
+ The x range will be [-11:10] because the default is [-10:10] and it has been
+ expanded to the left by 0.05 of that total range.
 3 origin
 ?commands set origin
 ?commands show origin
@@ -12804,7 +13024,7 @@ Ffigure_multiple_keys
                   { {no}lighting
                     {primary <fraction>} {specular <fraction>} {spec2 <fraction>}
                   }
-                  { border {<linestyle-options>}}
+                  { {no}border {retrace} {<linestyle-options>}}
                   { implicit | explicit }
                   { map }
                 }
@@ -13063,20 +13283,18 @@ Ffigure_multiple_keys
 ?pm3d hidden3d
 ?set pm3d border
 ?pm3d border
- The option `set pm3d border {line-properties}` draws bounding lines around each
- quadrangle as it is rendered. Normally this is used in conjunction with the
- `depthorder` option to approximate hidden line removal.
- Note that the global option `set hidden3d` has no effect on pm3d plots.
- Default line properties (color, width) optionally follow the keyword `border`.
- These defaults can be overridden later in an splot command.
+      set pm3d border {retrace} {line-properties}
+      set pm3d noborder
 
- Example of recommended usage:
+ This option draws bounding lines around each pm3d quadrangle as it is rendered.
+ Additional line properties (linetype, color, linewidth) are optional.
+ By default the border is drawn as a solid black line with width 1.
 
-       set pm3d at s depthorder border lw 0.2 lt black
-       unset hidden3d
-       unset surf
-       splot x*x+y*y linecolor rgb "blue"   # otherwise it would be black
-
+ `set pm3d border retrace` causes a border to be drawn in the same color as the
+ quadrangle.  In principle this should give the same result as `noborder`, but
+ some output modes can suffer from antialiasing artifacts between adjacent
+ filled quadrangles. Retracing the border hides these artifacts, at the cost of
+ a larger output file.
 4 fillcolor
 ?pm3d fillcolor
       splot FOO with pm3d fillcolor <colorspec>
@@ -13225,7 +13443,7 @@ Ffigure_multiple_keys
 ?commands show print
 ?set print
 ?show print
- The `set print` command redirects the output of the `print` command to a file.
+ The `set print` command redirects the output of the `print` command.
 
  Syntax:
        set print
@@ -13493,6 +13711,12 @@ Ffigure_multiple_keys
  If the linestyle <index> already exists, only the given parameters are
  changed while all others are preserved.  If not, all undefined values are
  set to the default values.
+
+ An arrow style invoked from a `plot` or `splot` command can include a
+ data-dependent linecolor (`lc variable` or `lc rgb variable`) that consumes
+ an additional column of data in the corresponding `using` specification.
+ In this case the style is probably not useful for individual arrows created
+ by `set arrow`.
 
  Specifying `nohead` produces arrows drawn without a head---a line segment.
  This gives you yet another way to draw a line segment on the plot.  By
@@ -14654,6 +14878,7 @@ Ffigure_multiple_keys
  along the screen vertical.  Non-zero azimuth rotates the plot about the line
  of sight through the origin so that a projection of the z axis is no longer
  vertical.  When azimuth = 90 the z axis is horizontal rather than vertical.
+ During interactive viewing, hot-key `z` resets azimuth to 0.
 4 equal_axes
 ?set view equal_axes
 ?set view equal xyz
@@ -15056,7 +15281,11 @@ Ffigure_walls
  the plot line will be used for that single `plot` command; a range given by
  a `set` command will be used for all subsequent plots that do not specify
  their own ranges.  The same holds true for `splot`.
-
+4 examples
+?commands set xrange examples
+?set xrange examples
+?set range examples
+?xrange examples
  Examples:
 
  To set the xrange to the default:
@@ -15083,7 +15312,16 @@ Ffigure_walls
 
  Make sure xmin is somewhere between -200 and 100:
        set xrange [-200<*<100:]
-
+4 extend
+?commands set xrange noextend
+?set xrange noextend
+?set range noextend
+?xrange noextend
+?set xrange extend
+?set range extend
+?xrange extend
+ `set xrange noextend` is the same as `set autoscale x noextend`.
+ See `noextend`.
 3 xtics
 ?commands set xtics
 ?commands unset xtics
@@ -15908,8 +16146,9 @@ Ffigure_walls
      plot $DATA matrix columnheaders rowheaders with image
 
  For text input, a blank line or comment line ends the matrix, and starts a new
- surface mesh.  You can select among the meshes inside a file by the `index`
- option to the `splot` command, as usual.
+ data block.  You can select among the data blocks in a file by the `index`
+ option to the `splot` command, as usual.  The columnheaders option, if present,
+ is applied only to the first data block.
 5 nonuniform
 ?commands plot datafile matrix nonuniform
 ?commands splot datafile matrix nonuniform

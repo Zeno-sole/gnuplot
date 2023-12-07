@@ -320,6 +320,10 @@ plot3drequest()
     axis_init(&axis_array[U_AXIS], FALSE);
     axis_init(&axis_array[V_AXIS], FALSE);
     axis_init(&axis_array[COLOR_AXIS], TRUE);
+    if (splot_map) {
+	axis_init(&axis_array[SECOND_X_AXIS], FALSE);
+	axis_init(&axis_array[SECOND_Y_AXIS], FALSE);
+    }
 
     /* Always be prepared to restore the autoscaled values on "refresh"
      * Dima Kogan April 2018
@@ -659,6 +663,10 @@ grid_nongrid_data(struct surface_points *this_plot)
     double *xx = NULL, *yy = NULL, *zz = NULL, *b = NULL;
     int numpoints = 0;
 
+    /* nothing to grid */
+    if (this_plot->num_iso_read == 0)
+	return;
+
     /* Version 5.3 - allow gridding of separate color column so long as
      * we don't need to generate splines for it
      */
@@ -893,6 +901,7 @@ get_3ddata(struct surface_points *this_plot)
 	double xtail, ytail, ztail;
 	double zlow = VERYLARGE, zhigh = -VERYLARGE;
 	double color = VERYLARGE;
+	int arrowstyle = 0;
 	int pm3d_color_from_column = FALSE;
 #define color_from_column(x) pm3d_color_from_column = x
 
@@ -906,6 +915,7 @@ get_3ddata(struct surface_points *this_plot)
 
 	if (this_plot->plot_style == POLYGONS) {
 	    this_plot->has_grid_topology = FALSE;
+	    this_plot->opt_out_of_dgrid3d = TRUE;
 	    track_pm3d_quadrangles = TRUE;
 	}
 
@@ -1141,7 +1151,7 @@ get_3ddata(struct surface_points *this_plot)
 		    if (cp->CRD_PTSIZE == PTSZ_VARIABLE)
 			cp->CRD_PTSIZE = v[varcol++];
 		    if (cp->CRD_PTTYPE == PT_VARIABLE)
-			cp->CRD_PTTYPE = v[varcol++];
+			cp->CRD_PTTYPE = v[varcol++] - 1;
 		    if (j < varcol)
 			int_error(NO_CARET, "Not enough input columns");
 		    if (j == varcol) {
@@ -1171,8 +1181,10 @@ get_3ddata(struct surface_points *this_plot)
 		xtail = x + v[3];
 		ytail = y + v[4];
 		ztail = z + v[5];
+		/* variable color is always last but there can be intervening variable styles */
+		arrowstyle = v[6];
 		if (j >= 7) {
-		    color = v[6];
+		    color = v[j-1];
 		    color_from_column(TRUE);
 		} else {
 		    color = z;
@@ -1257,7 +1269,7 @@ get_3ddata(struct surface_points *this_plot)
 				this_plot->noautoscale, goto come_here_if_undefined);
 	    }
 
-	    if (dgrid3d) {
+	    if (dgrid3d && !this_plot->opt_out_of_dgrid3d) {
 		/* No point in auto-scaling before we re-grid the data */
 		cp->z = z;
 		cp->CRD_COLOR = (pm3d_color_from_column) ? color : z;
@@ -1318,8 +1330,11 @@ get_3ddata(struct surface_points *this_plot)
 				this_plot->noautoscale, goto come_here_if_undefined);
 
 		if (pm3d_color_from_column) {
-		    if (this_plot->plot_style == VECTOR)
+		    if (this_plot->plot_style == VECTOR) {
 			cphead->CRD_COLOR = color;
+			cphead->CRD_ASTYLE = arrowstyle;
+			cp->CRD_ASTYLE = arrowstyle;
+		    }
 		} else {
 		    color = z;
 		}
@@ -1333,8 +1348,10 @@ get_3ddata(struct surface_points *this_plot)
 	    /* At this point we have stored the point coordinates. Now we need to copy */
 	    /* x,y,z into the text_label structure and add the actual text string.     */
 	    if (this_plot->plot_style == LABELPOINTS) {
-		/* Aug 2018: only store INRANGE labels. This is a CHANGE. */
-		if (cp->type == INRANGE)
+		if (draw_contour && !this_plot->opt_out_of_contours)
+		    /* Contour labels are calculated and added later */
+		    ;
+		else if (cp->type == INRANGE)
 		    store_label(this_plot->labels, cp, xdatum, df_tokens[3], color);
 	    }
 
@@ -1392,9 +1409,8 @@ get_3ddata(struct surface_points *this_plot)
 	/*}}} */
     }
 
-    if (dgrid3d && this_plot->num_iso_read > 0)
+    if (dgrid3d && !(this_plot->opt_out_of_dgrid3d))
 	grid_nongrid_data(this_plot);
-
 
     if (this_plot->num_iso_read <= 1)
 	this_plot->has_grid_topology = FALSE;
@@ -1714,6 +1730,7 @@ eval_3dplots()
 
 		/* FIXME: additional fields may need to be reset */
 		this_plot->opt_out_of_hidden3d = FALSE;
+		this_plot->opt_out_of_dgrid3d = FALSE;
 		this_plot->title_is_suppressed = FALSE;
 
 		/* Mechanism for deferred evaluation of plot title */
@@ -1807,6 +1824,7 @@ eval_3dplots()
 		this_plot->num_iso_read = iso_samples_2;
 		/* FIXME: additional fields may need to be reset */
 		this_plot->opt_out_of_hidden3d = FALSE;
+		this_plot->opt_out_of_dgrid3d = FALSE;
 		this_plot->title_is_suppressed = FALSE;
 		/* ignore it for now */
 		some_functions = TRUE;
@@ -1937,6 +1955,13 @@ eval_3dplots()
 		if (almost_equals(c_token, "nohidden$3d")) {
 		    c_token++;
 		    this_plot->opt_out_of_hidden3d = TRUE;
+		    continue;
+		}
+
+		/* "set dgrid3d" tries to grid *everything*, which isn't always wanted */
+		if (equals(c_token, "nogrid")) {
+		    c_token++;
+		    this_plot->opt_out_of_dgrid3d = TRUE;
 		    continue;
 		}
 
@@ -2089,8 +2114,17 @@ eval_3dplots()
 	    if (this_plot->plot_style == TABLESTYLE)
 		int_error(NO_CARET, "use `plot with table` rather than `splot with table`"); 
 
-	    if (this_plot->plot_style == PARALLELPLOT)
-		int_error(NO_CARET, "plot style parallelaxes not supported in 3D");
+	    /* Various other non-supported styles can be treated as if they were POINTS.
+	     * These are styles whose data format is sufficiently different that it's
+	     * better to not even try.
+	     */
+	    if ((this_plot->plot_style == HISTOGRAMS)
+	    ||  (this_plot->plot_style == SPIDERPLOT)
+	    ||  (this_plot->plot_style == PARALLELPLOT)
+	    ||  (this_plot->plot_style == CANDLESTICKS)
+	    ||  (this_plot->plot_style == FINANCEBARS)
+	    ||  (this_plot->plot_style == BOXPLOT))
+		int_error(NO_CARET, "plot style not supported in 3D");
 
 	    /* set default values for title if this has not been specified */
 	    this_plot->title_is_automated = FALSE;
@@ -2252,10 +2286,6 @@ eval_3dplots()
 			}
 		    }
 
-		    if (this_plot != first_dataset)
-			/* copy (explicit) "with pm3d at ..." option from the first dataset in the file */
-			strcpy(this_plot->pm3d_where, first_dataset->pm3d_where);
-
 		    /* okay, we have read a surface */
 		    plot_num++;
 		    tp_3d_ptr = &(this_plot->next_sp);
@@ -2291,6 +2321,7 @@ eval_3dplots()
 			*(this_plot->labels) = *(first_dataset->labels);
 			this_plot->labels->next = NULL;
 		    }
+		    strcpy(this_plot->pm3d_where, first_dataset->pm3d_where);
 		} while (df_return != DF_EOF);
 
 		df_close();
@@ -2603,6 +2634,22 @@ eval_3dplots()
 	int_error(c_token, "no functions or data to plot");
     }
 
+    /* In "set view map" mode it is possible for the x1/x2 or y1/y2 axes
+     * to be linked.  If so, reconcile their data limits before plotting.
+     */
+    if (splot_map) {
+	if (axis_array[FIRST_X_AXIS].linked_to_secondary) {
+	    AXIS *primary = &axis_array[FIRST_X_AXIS];
+	    AXIS *secondary = &axis_array[SECOND_X_AXIS];
+	    reconcile_linked_axes(primary, secondary);
+	}
+	if (axis_array[FIRST_Y_AXIS].linked_to_secondary) {
+	    AXIS *primary = &axis_array[FIRST_Y_AXIS];
+	    AXIS *secondary = &axis_array[SECOND_Y_AXIS];
+	    reconcile_linked_axes(primary, secondary);
+	}
+    }
+
     if (nonlinear(&axis_array[FIRST_X_AXIS])) {
 	/* Transfer observed data or function ranges back to primary axes */
 	update_primary_axis_range(&axis_array[FIRST_X_AXIS]);
@@ -2725,6 +2772,7 @@ eval_3dplots()
 		new_plot->hidden3d_top_linetype = LT_NODRAW;
 		new_plot->plot_type = DATA3D;
 		new_plot->opt_out_of_hidden3d = FALSE;
+		new_plot->opt_out_of_dgrid3d = FALSE;
 
 		/* Compute the geometry of the phantom */
 		process_image(this_plot, IMG_UPDATE_CORNERS);

@@ -164,7 +164,7 @@ DIRECT2D11=1
 GRXPATH=c:/Source/grx249
 # or, the MGRX fork of GRX
 #MGRX=1
-MGRXPATH=c:/Source/mgrx110
+MGRXPATH=c:/Source/mgrx
 
 
 # Below you can adapt paths according to your software setup:
@@ -302,6 +302,7 @@ endif
 
 ifdef UNICODE
   CFLAGS += -DUNICODE -D_UNICODE
+  LDFLAGS2 += -municode
 endif
 
 CFLAGS += $(CWFLAGS)
@@ -851,7 +852,7 @@ doc2html.exe: $(CORETERM) $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c versio
 doc2html-ja.exe: $(JASRC) $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c version.o $(LUA_HELP)
 	$(LD) $(LDFLAGS) -o $@ -DWINDOWS_NO_GUI \
 	    -DVERSION_MAJOR='"$(MAINVERSION)"' -DPATCHLEVEL='"$(PATCHLEVEL)"' \
-	    -DJAPANESE_DOC $(CFLAGS) -I. -I$(JAD) -I$(JA)/term \
+	    -DJAPANESE_DOC -I. -I$(JAD) -I$(JA)term $(CFLAGS) \
 	    $(D)windows/doc2html.c $(D)termdoc.c $(D)xref.c
 
 doc2ms.exe: $(D)doc2ms.c $(D)termdoc.c $(D)xref.c version.o $(LUA_HELP)
@@ -1095,11 +1096,11 @@ endif
 #	-cp -p $(TOP)/win/README-testing-ja.txt $(DESTDIR)/
 	-unix2dos $(DESTDIR)/*.txt $(DESTDIR)/README
 	-unix2dos $(DESTDIR)/Copyright $(DESTDIR)/NEWS $(DESTDIR)/BUGS $(DESTDIR)/RELEASE_NOTES
-# demo and contrib
-	mkdir -p $(DESTDIR)/demo
-	-cp -pr $(M)* $(DESTDIR)/demo/
-#	mkdir -p $(DESTDIR)/demo/games
-#	-cp -p $(M)/games/* $(DESTDIR)/demo/games/
+# demo and contrib (exclude demo/plugin and demo/html)
+	-mkdir -p $(DESTDIR)/demo
+	-cp -p $(M)* $(DESTDIR)/demo/
+	-mkdir -p $(DESTDIR)/demo/games
+	-cp -p $(M)/games/* $(DESTDIR)/demo/games/
 # docs
 	mkdir -p $(DESTDIR)/docs
 	-cp -p gnuplot.pdf $(DESTDIR)/docs/
@@ -1120,20 +1121,22 @@ endif
 ifdef DLLS
 ifdef MINGW64
 ifndef M32
-	ldd gnuplot.exe | cut -d " " -f 3 | grep "^/mingw64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
 ifdef QT
-	ldd gnuplot_qt.exe | cut -d " " -f 3 | grep "^/mingw64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
+	ldd gnuplot.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/mingw64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
 	-mkdir $(DESTDIR)/bin/platforms
 	cp /mingw64/share/qt5/plugins/platforms/qminimal.dll $(DESTDIR)/bin/platforms
 	cp /mingw64/share/qt5/plugins/platforms/qwindows.dll $(DESTDIR)/bin/platforms
+else
+	ldd gnuplot.exe | cut -d " " -f 3 | grep "^/mingw64/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
 endif # QT
 else # !M32
-	ldd gnuplot.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/mingw32/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
 ifdef QT
-	ldd gnuplot_qt.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/mingw32/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
+	ldd gnuplot.exe gnuplot_qt.exe | cut -d " " -f 3 | grep "^/mingw32/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
 	-mkdir $(DESTDIR)/bin/platforms
 	cp /mingw32/share/qt5/plugins/platforms/qminimal.dll $(DESTDIR)/bin/platforms
 	cp /mingw32/share/qt5/plugins/platforms/qwindows.dll $(DESTDIR)/bin/platforms
+else
+	ldd gnuplot.exe | cut -d " " -f 3 | grep "^/mingw32/bin" | sort | uniq | xargs -t -i cp {} $(DESTDIR)/bin
 endif # QT
 endif # M32
 endif # MINGW64

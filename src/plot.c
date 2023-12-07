@@ -51,18 +51,9 @@
 #include <signal.h>
 #include <setjmp.h>
 
-#ifdef OS2 /* os2.h required for gpexecute.h */
-# define INCL_DOS
+#ifdef OS2
 # define INCL_REXXSAA
-# ifdef OS2_IPC
-#  define INCL_DOSSEMAPHORES
-# endif
 # include <os2.h>
-#endif /* OS2 */
-
-/* on OS/2 this is needed even without USE_MOUSE */
-#if defined(OS2_IPC)
-# include "gpexecute.h"
 #endif
 
 #if defined(MSDOS) || defined(__EMX__) || (defined(WGP_CONSOLE) && defined(MSVC))
@@ -298,18 +289,13 @@ main(int argc_orig, char **argv)
     _control87(MCW_EM, MCW_EM);
 #endif
 
-#if defined(OS2)
+#ifdef OS2
     {
-	int rc;
-#ifdef OS2_IPC
-	char semInputReadyName[40];
-
-	sprintf(semInputReadyName, "\\SEM32\\GP%i_Input_Ready", getpid());
-	rc = DosCreateEventSem(semInputReadyName, &semInputReady, 0, 0);
-	if (rc != 0)
-	    fputs("DosCreateEventSem error\n", stderr);
-#endif
-	rc = RexxRegisterSubcomExe("GNUPLOT", (PFN) RexxInterface, NULL);
+	int rc = RexxRegisterSubcomExe("GNUPLOT", (PFN) RexxInterface, NULL);
+	(void) rc;
+# ifdef OS2_IPC
+	os2_ipc_setup();
+# endif
     }
 #endif
 
@@ -372,6 +358,16 @@ main(int argc_orig, char **argv)
     history_init();
 #endif
 #endif
+
+#if defined(HAVE_LIBREADLINE) && defined(RL_VERSION_MAJOR)
+    /* Starting with readline v8.1 bracketed paste mode is on by default.
+     * This breaks multi-line pasted input to gnuplot because it looks like
+     * one long run-on line.
+     */
+    if (RL_VERSION_MAJOR >= 8)
+	rl_variable_bind ("enable-bracketed-paste", "off");
+#endif
+
 #if defined(HAVE_LIBREADLINE) && !defined(MISSING_RL_TILDE_EXPANSION)
     rl_complete_with_tilde_expansion = 1;
 #endif
@@ -379,6 +375,13 @@ main(int argc_orig, char **argv)
     for (i = 1; i < argc; i++) {
 	if (!argv[i])
 	    continue;
+
+	if (!strcmp(argv[i], "-c")) {
+	    /* The rest of the command line is a scriptfile and its arguments.
+	     * Do not try to interpret them here (ignore -V, --help, etc).
+	     */
+	    break;
+	}
 
 	if (!strcmp(argv[i], "-V") || !strcmp(argv[i], "--version")) {
 	    printf("gnuplot %s patchlevel %s\n",
@@ -458,6 +461,7 @@ main(int argc_orig, char **argv)
     /* Initialize pre-loaded user variables */
     /* "pi" is hard-wired as the first variable */
     (void) add_udv_by_name("GNUTERM");
+    (void) add_udv_by_name("I");
     (void) add_udv_by_name("NaN");
     init_constants();
     udv_user_head = &(udv_NaN->next_udv);
@@ -672,9 +676,9 @@ RECOVER_FROM_ERROR_IN_DASH:
 		    gp_exit(EXIT_FAILURE);
 		}
 		call_argc = GPMIN(9, argc - 1);
-		for (i=0; i<=call_argc; i++) {
+		for (i = 0; i < call_argc; i++) {
 		    /* Need to stash argv[i] somewhere visible to load_file() */
-		    call_args[i] = gp_strdup(argv[i+1]);
+		    call_args[i] = gp_strdup(argv[i + 1]);
 		}
 
 		load_file(loadpath_fopen(*argv, "r"), gp_strdup(*argv), 5);
@@ -760,6 +764,8 @@ init_constants()
     (void) Gcomplex(&udv_pi.udv_value, M_PI, 0.0);
     udv_NaN = get_udv_by_name("NaN");
     (void) Gcomplex(&(udv_NaN->udv_value), not_a_number(), 0.0);
+    udv_I = get_udv_by_name("I");
+    (void) Gcomplex(&(udv_I->udv_value), 0.0, 1.0);
 }
 
 /*

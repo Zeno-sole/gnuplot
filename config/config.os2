@@ -158,9 +158,9 @@
 #define HAVE_INDEX 1
 
 /* Define to 1 if you have the <inttypes.h> header file. */
-#ifdef __KLIBC__
-# define HAVE_INTTYPES_H 1
-#endif
+/* EMX does not have inttypes.h, but we create a sufficient one
+   from the Makefile */
+#define HAVE_INTTYPES_H 1
 
 /* Define if you want to use kpsexpand (TeX). */
 /* #undef HAVE_KPSEXPAND */
@@ -665,5 +665,7 @@
 # define isblank(x) isspace(x)
 # define isinf(x) (fpclassify(x) == FP_INFINITE)
 # define atoll _atoll
-# define strlcpy(a, b, c) strcpy(a, b)
+# define round(x) ((x >= 0.0) ? floor(x + 0.5) : ceil(x - 0.5))
+# define lround(a) (long)(round(a))
+# define llround(a) (long long)(round(a))
 #endif

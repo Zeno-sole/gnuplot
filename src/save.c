@@ -509,7 +509,16 @@ save_set_all(FILE *fp)
 		key->swidth, key->vert_factor, key->width_fix, key->height_fix);
     fprintf(fp, "\nset key maxcolumns %d maxrows %d",key->maxcols,key->maxrows);
     fputc('\n', fp);
-    fprintf(fp, "set key %sopaque\n", key->front ? "" : "no");
+    if (key->front) {
+	fprintf(fp, "set key opaque");
+	if (key->fillcolor.lt != LT_BACKGROUND) {
+	    fprintf(fp, " fc ");
+	    save_pm3dcolor(fp, &key->fillcolor);
+	}
+	fprintf(fp, "\n");
+    } else {
+	fprintf(fp, "set key noopaque\n");
+    }
 
     if (!(key->visible))
 	fputs("unset key\n", fp);
@@ -557,7 +566,7 @@ save_set_all(FILE *fp)
 	if (this_arrow->type == arrow_end_absolute) {
 	    fputs(" to ", fp);
 	    save_position(fp, &this_arrow->end, 3, FALSE);
-	} else if (this_arrow->type == arrow_end_absolute) {
+	} else if (this_arrow->type == arrow_end_relative) {
 	    fputs(" rto ", fp);
 	    save_position(fp, &this_arrow->end, 3, FALSE);
 	} else { /* type arrow_end_oriented */
@@ -682,12 +691,15 @@ set encoding %s\n\
 
     fprintf(fp, "\n\
 set samples %d, %d\n\
-set isosamples %d, %d\n\
-%sset surface %s",
+set isosamples %d, %d",
 	    samples_1, samples_2,
-	    iso_samples_1, iso_samples_2,
-	    (draw_surface) ? "" : "un",
-	    (implicit_surface) ? "" : "explicit");
+	    iso_samples_1, iso_samples_2);
+
+    fprintf(fp, "\n\
+set surface %s\n\
+%sset surface",
+	    (implicit_surface) ? "implicit" : "explicit",
+	    (draw_surface) ? "" : "un");
 
     fprintf(fp, "\n\
 %sset contour", (draw_contour) ? "" : "un");
@@ -923,6 +935,8 @@ set origin %g,%g\n",
 	fprintf(fp," noborder");
     } else {
 	fprintf(fp," border");
+	if (pm3d.border.l_type == LT_DEFAULT)
+	    fprintf(fp," retrace");
 	save_linetype(fp, &(pm3d.border), FALSE);
     }
     fputs(" corners2color ", fp);
@@ -1676,6 +1690,8 @@ save_histogram_opts (FILE *fp)
     if (histogram_opts.title.font)
 	fprintf(fp, " font \"%s\" ", histogram_opts.title.font);
     save_position(fp, &histogram_opts.title.offset, 2, TRUE);
+    if (!histogram_opts.keyentry)
+	fprintf(fp, " nokeyseparators");
     fprintf(fp, "\n");
 }
 

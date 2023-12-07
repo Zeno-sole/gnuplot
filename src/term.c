@@ -128,7 +128,7 @@ char *PS_psdir = NULL;
 char *PS_fontpath = NULL;
 
 /* true if terminal has been initialized */
-TBOOLEAN term_initialised;
+TBOOLEAN term_initialised = FALSE;
 
 /* The qt and wxt terminals cannot be used in the same session. */
 /* Whichever one is used first to plot, this locks out the other. */
@@ -235,6 +235,7 @@ static void UNKNOWN_null(void);
 static void MOVE_null(unsigned int, unsigned int);
 static void LINETYPE_null(int);
 static void PUTTEXT_null(unsigned int, unsigned int, const char *);
+static TBOOLEAN sanity_check_font_size(void);
 
 static int strlen_tex(const char *);
 
@@ -516,6 +517,8 @@ term_start_plot()
 	term_suspended = FALSE;
     }
 
+    sanity_check_font_size();
+
     if (multiplot)
 	multiplot_count++;
 
@@ -665,15 +668,18 @@ term_apply_lp_properties(struct lp_style_type *lp)
     } else /* All normal lines will be solid unless a dashtype is given */
 	(*term->linetype) (LT_SOLID);
 
-    /* Version 5.3
-     * If the line is not wanted at all, setting dashtype and color can only hurt
+    /* Version 5.4.2
+     * If the line is not wanted at all, setting dashtype can only hurt.
+     * But we might still want to set a color so that points can use it.
      */
-    if (lt == LT_NODRAW)
-	return;
+    if (lt == LT_NODRAW) {
+	if (colorspec.type == TC_DEFAULT || (colorspec.type == TC_LT && colorspec.lt == LT_BLACK))
+	    return;
+    }
 
     /* Apply dashtype or user-specified dash pattern, which may override  */
     /* the terminal-specific dot/dash pattern belonging to this linetype. */
-    if (lt == LT_AXIS)
+    else if (lt == LT_AXIS)
 	; /* LT_AXIS is a special linetype that may incorporate a dash pattern */
     else if (dt == DASHTYPE_CUSTOM)
 	(*term->dashtype) (dt, &custom_dash_pattern);
@@ -800,7 +806,7 @@ write_multiline(
 	    if (on_page(x, y))
 		(*t->put_text) (x, y, text);
 	} else {
-	    int len = estimate_strlen(text);
+	    int len = estimate_strlen(text, NULL);
 	    int hfix, vfix;
 
 	    if (angle == 0) {
@@ -1429,7 +1435,7 @@ set_term()
     if (!END_OF_COMMAND) {
 	input_name = gp_input_line + token[c_token].start_index;
 	t = change_term(input_name, token[c_token].length);
-	if (!t && isstringvalue(c_token) && (input_name = try_to_get_string())) {
+	if (!t && (input_name = try_to_get_string())) {
 	    if (strchr(input_name, ' '))
 		*strchr(input_name, ' ') = '\0';
 	    t = change_term(input_name, strlen(input_name));
@@ -2491,16 +2497,19 @@ enh_err_check(const char *str)
  * "estimate.trm" and then switch back to the current terminal.
  * If better, perhaps terminal-specific methods of estimation are
  * developed later they can be slotted into this one call site.
+ *
+ * Dec 2019: height is relative to original font size
+ *		DEBUG: currently pegged at 10pt - we should do better!
  */
 int
-estimate_strlen(const char *text)
+estimate_strlen(const char *text, double *height)
 {
     int len;
     char *s;
+    double estimated_fontheight = 1.0;
 
     if ((term->flags & TERM_IS_LATEX))
-	len = strlen_tex(text);
-    else
+	return strlen_tex(text);
 
 #ifdef GP_ENH_EST
     if (strchr(text,'\n') || (term->flags & TERM_ENHANCED_TEXT)) {
@@ -2508,6 +2517,7 @@ estimate_strlen(const char *text)
 	term = &ENHest;
 	term->put_text(0,0,text);
 	len = term->xmax;
+	estimated_fontheight = term->ymax / 10.;
 	term = tsave;
 	/* Assume that unicode escape sequences  \U+xxxx will generate a single character */
 	/* ENHest_plaintext is filled in by the put_text() call to estimate.trm           */
@@ -2517,13 +2527,16 @@ estimate_strlen(const char *text)
 	    s += 6;
 	}
 	FPRINTF((stderr,"Estimating length %d height %g for enhanced text \"%s\"",
-		len, (double)(term->ymax)/10., text));
+		len, estimated_fontheight, text));
 	FPRINTF((stderr,"  plain text \"%s\"\n", ENHest_plaintext));
     } else if (encoding == S_ENC_UTF8)
 	len = strwidth_utf8(text);
     else
 #endif
 	len = strlen(text);
+
+    if (height)
+	*height = estimated_fontheight;
 
     return len;
 }
@@ -2537,7 +2550,7 @@ estimate_plaintext(char *enhancedtext)
 {
     if (enhancedtext == NULL)
 	return NULL;
-    estimate_strlen(enhancedtext);
+    estimate_strlen(enhancedtext, NULL);
     return ENHest_plaintext;
 }
 
@@ -2558,7 +2571,7 @@ on_page(int x, int y)
     if (term->flags & TERM_CAN_CLIP)
 	return TRUE;
 
-    if ((0 < x && x < term->xmax) && (0 < y && y < term->ymax))
+    if ((0 <= x && x < term->xmax) && (0 <= y && y < term->ymax))
 	return TRUE;
 
     return FALSE;
@@ -2919,4 +2932,23 @@ escape_reserved_chars(const char *str, const char *reserved)
 	escaped_str[newsize] = '\0';
 
     return escaped_str;
+}
+
+
+/* Sanity check:
+ * The most common program failure mode found by fuzzing is a divide-by-zero
+ * caused by initializing the basic unit of the current terminal character
+ * size to zero.  I keep patching individual terminals, but a generic
+ * sanity check may at least prevent a crash due to typos.
+ */
+static TBOOLEAN
+sanity_check_font_size()
+{
+    if (!(0 < term->v_char && term->v_char < term->ymax)
+    ||  !(0 < term->h_char && term->h_char < term->xmax)) {
+	int_warn(NO_CARET, "Invalid terminal font size");
+	term->v_char = term->h_char = 10;
+	return FALSE;
+    }
+    return TRUE;
 }

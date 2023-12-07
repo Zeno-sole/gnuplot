@@ -1,3 +1,46 @@
+gnuplot (5.4.4+dfsg1-2) unstable; urgency=medium
+
+  * Team upload.
+  * Transition to wxWidgets 3.2 (Closes: #1019836)
+
+ -- Scott Talbert <swt@techie.net>  Wed, 19 Oct 2022 20:09:42 -0400
+
+gnuplot (5.4.4+dfsg1-1) unstable; urgency=medium
+
+  [ Adrian Bunk ]
+  * [ab6f961] Remove the unused build dependencies
+     on libqt5webkit5-dev and libqt5opengl5-dev. (Closes: #1012523)
+
+  [ Anton Gladky ]
+  * [6b082c9] New upstream version 5.4.4+dfsg1
+  * [1f93c7e] Refresh patches
+  * [b5dc272] Fix PDF compilation. (Closes: #1016323)
+  * [a4c0ca5] Set Standards-Version: 4.6.1
+
+ -- Anton Gladky <gladk@debian.org>  Sat, 20 Aug 2022 21:18:13 +0200
+
+gnuplot (5.4.2+dfsg2-2) unstable; urgency=medium
+
+  * [8081beb] Fix divide by zero vulnerability. CVE-2021-44917.
+              (Closes: #1002539)
+
+ -- Anton Gladky <gladk@debian.org>  Sat, 25 Dec 2021 18:36:08 +0100
+
+gnuplot (5.4.2+dfsg2-1) unstable; urgency=medium
+
+  * [4370a18] Update d/watch
+  * [7d7c5c0] New upstream version 5.4.2+dfsg1.orig
+  * [97d5d83] Refresh patches
+  * [9d8bbae] Update gitlab.ci
+  * [e168129] Use secure URI in debian/watch.
+  * [08324bf] Bump debhelper from old 12 to 13.
+  * [3a47530] Update standards version to 4.5.1, no changes needed.
+  * [ba4a50d] Avoid explicitly specifying -Wl,--as-needed linker flag.
+  * [9ce752b] Set Standards-Version: 4.6.0
+  * [917e564] Use execute-syntax for some commands in d/rules
+
+ -- Anton Gladky <gladk@debian.org>  Sat, 18 Dec 2021 20:22:42 +0100
+
 gnuplot (5.4.1+dfsg1-1) unstable; urgency=medium
 
   * [945257b] New upstream version 5.4.1+dfsg1

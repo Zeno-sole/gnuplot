@@ -132,6 +132,14 @@ f_pop(union argument *x)
 }
 
 void
+f_nop(union argument *x)
+{
+    /* Presence of NOP in an action table serves as a barrier
+     * at the end of a ternary operation sequence.
+     */
+}
+
+void
 f_pushd2(union argument *x)
 {
     push(&(x->udf_arg->dummy_values[1]));
@@ -244,8 +252,9 @@ f_calln(union argument *x)
 
 /* Evaluate expression   sum [i=beg:end] f(i)
  * Return an integer if f(i) are all integral, complex otherwise.
+ * Save and restore value of i.
  * This is a change from versions 5.0 and 5.2 which always returned
- * a complex value.
+ * a complex value and clobbered the iteration variable.
  */
 void
 f_sum(union argument *arg)
@@ -255,6 +264,7 @@ f_sum(union argument *arg)
     udvt_entry *udv;                /* iteration variable */
     struct value result;            /* accummulated sum */
     struct value f_i;
+    struct value save_i;	    /* previous value of iteration variable */
     int i;
     intgr_t llsum;		    /* integer sum */
     TBOOLEAN integer_terms = TRUE;
@@ -269,9 +279,10 @@ f_sum(union argument *arg)
 
     if (beg.type != INTGR || end.type != INTGR)
 	int_error(NO_CARET, "range specifiers of sum must have integer values");
-    if ((varname.type != STRING) || !(udv = get_udv_by_name(varname.v.string_val)))
-	int_error(NO_CARET, "internal error: lost iteration variable for summation");
+
+    udv = add_udv_by_name(varname.v.string_val);
     gpfree_string(&varname);
+    save_i = udv->udv_value;
 
     udf = arg->udf_arg;
     if (!udf)
@@ -317,6 +328,9 @@ f_sum(union argument *arg)
 	push(Ginteger(&result, llsum));
     else
 	push(&result);
+
+    /* restore original value of iteration variable */
+    udv->udv_value = save_i;
 }
 
 
@@ -1447,6 +1461,8 @@ f_index(union argument *arg)
 	i = index.v.int_val;
     else if (index.type == CMPLX)
 	i = floor(index.v.cmplx_val.real);
+    else
+	int_error(NO_CARET, "non-numeric array index");
 
     if (array.type == ARRAY) {
 	if (i <= 0 || i > array.v.value_array[0].v.int_val)
@@ -2131,13 +2147,13 @@ f_trim(union argument *arg)
 
     /* Trim from front */
     s = a.v.string_val;
-    while (isspace(*s))
+    while (isspace((unsigned char) *s))
 	s++;
 
     /* Trim from back */
     trim = strdup(s);
     s = &trim[strlen(trim)-1];
-    while ((s > trim) && isspace(*s))
+    while ((s > trim) && isspace((unsigned char) *s))
 	*(s--) = '\0';
 
     free(a.v.string_val);

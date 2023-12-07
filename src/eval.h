@@ -47,7 +47,7 @@
 enum operators {
     /* keep this in line with table in eval.c */
     PUSH, PUSHC, PUSHD1, PUSHD2, PUSHD, POP,
-    CALL, CALLN, SUM, LNOT, BNOT, UMINUS,
+    CALL, CALLN, SUM, LNOT, BNOT, UMINUS, NOP,
     LOR, LAND, BOR, XOR, BAND, EQ, NE, GT, LT, GE, LE, 
     LEFTSHIFT, RIGHTSHIFT, PLUS, MINUS,
     MULT, DIV, MOD, POWER, FACTORIAL, BOOLE,
@@ -132,6 +132,7 @@ extern const struct ft_entry ft[]; /* The table of builtin functions */
 extern struct udft_entry *first_udf; /* user-def'd functions */
 extern struct udvt_entry *first_udv; /* user-def'd variables */
 extern struct udvt_entry udv_pi; /* 'pi' variable */
+extern struct udvt_entry *udv_I; /* 'I' (sqrt(-1)) */
 extern struct udvt_entry *udv_NaN; /* 'NaN' variable */
 extern struct udvt_entry **udv_user_head; /* first udv that can be deleted */
 extern TBOOLEAN undefined;

@@ -5,7 +5,7 @@ dnl NB: Change version/patchlevel immediately below
 dnl     and also in PATCHLEVEL and src/version.c
 dnl
 
-AC_INIT(gnuplot, 5.4.1)
+AC_INIT(gnuplot, 5.4.4)
 
 AC_CONFIG_SRCDIR(src/graphics.c)
 AC_PREREQ([2.69])
@@ -14,7 +14,7 @@ AC_CONFIG_HEADERS(config.h:config.hin)
 dnl The line below is for use during development
 dnl AC_DEFINE(DEVELOPMENT_VERSION,1,[Provide contact info for gnuplot develoment])
 dnl The line below is for packaging a release version
-AM_CONDITIONAL([DEVELOPMENT_VERSION], 0)
+AM_CONDITIONAL([DEVELOPMENT_VERSION], false)
 
 AM_INIT_AUTOMAKE([1.10 subdir-objects])
 
@@ -136,27 +136,20 @@ AC_CHECK_PROGS(TROFF, troff, no)
 AC_CHECK_PROGS(LATEX2HTML, latex2html, no)
 
 AC_ARG_WITH(texdir,dnl
-  [--with-texdir=DIR       where to install latex style files (default: ask kpsexpand)],
+  [--with-texdir=DIR       where to install latex style files (default: ask kpsewhich)],
   TEXDIR="$withval",
   TEXDIR="no")
-dnl Allow manual specification of kpsexpand 
-AC_CHECK_PROGS(KPSEXPAND, kpsexpand, no)
+dnl Allow manual specification of kpsewhich
+AC_CHECK_PROGS(KPSEWHICH, kpsewhich, no)
 AC_CHECK_PROGS(TEXHASH, texhash, true)
-AC_ARG_WITH(kpsexpand,dnl
-  [--with-kpsexpand        search for kpsexpand at run-time (default disabled)],
-  [if test "$withval" = yes; then
-    test "$KPSEXPAND" != "no" || AC_MSG_ERROR(dnl
-      [You tell me to use kpsexpand, but there is no kpsexpand])
-    AC_DEFINE(HAVE_KPSEXPAND,1,[ Define if you want to use kpsexpand (TeX). ])
-  fi])
 
 dnl we only care about texdir if latex is enabled
 if test "$with_latex" = yes; then
-  test "$KPSEXPAND" = "no" -a "$TEXDIR" = "no" && AC_MSG_ERROR(dnl
-    [texdir is not given and there is no kpsexpand, please tell where to install])
+  test "$KPSEWHICH" = "no" -a "$TEXDIR" = "no" && AC_MSG_ERROR(dnl
+    [texdir is not given and there is no kpsewhich, please tell where to install])
   dnl texdir has priority
   if test "$TEXDIR" = "no"; then
-    TEXDIR=`$KPSEXPAND '$TEXMFLOCAL'`
+    TEXDIR=`$KPSEWHICH --expand-var '$TEXMFLOCAL'`
     if test "x$TEXDIR" = "x" -o "$TEXDIR" = "\$TEXMFLOCAL"; then
       if test "x$prefix" != "xNONE"; then
         TEXDIR=${prefix}/share/texmf
@@ -190,8 +183,6 @@ fi
 AM_CONDITIONAL(BUILD_GNUPLOT_X11, test "$no_x" != yes)
 
 dnl Operating systems.
-dnl FIXME AC_DEFINE(ISC22)
-dnl FIXME AC_DEFINE(KSR)
 dnl Check for MSDOS and djgpp, Apple MacOsX, BeOS
 GP_MSDOS
 GP_APPLE
@@ -202,14 +193,8 @@ AM_CONDITIONAL(BUILD_SRC_BEOS_SUBDIR, test x$build_beos_subdir = xyes)
 dnl _instead_ of -lm ...
 AC_CHECK_FUNC(sin,,[AC_CHECK_LIB(m,sin)])
 
-dnl Header files. ANSI first
-dnl We prefer that the absense of a macro is the norm, so in syscfg.h
-dnl configure's HAVE_XXXX defines are translated into NO_XXXX for ANSI
-dnl headers and functions
-AC_HEADER_STDC
-
 dnl Header files
-dnl ANSI/ISO C, POSIX, others
+dnl AC_HEADER_STDC
 AC_CHECK_HEADERS(dirent.h errno.h float.h langinfo.h limits.h locale.h math.h \
   stdlib.h string.h time.h sys/time.h sys/types.h \
   sys/bsdtypes.h sys/ioctl.h sys/param.h sys/select.h sys/socket.h \
@@ -282,7 +267,7 @@ AC_CHECK_FUNCS(atexit memcpy memmove memset \
   on_exit bcopy bzero \
   setvbuf strerror strchr strrchr strstr \
   index rindex \
-  erf erfc gamma lgamma tgamma \
+  erf erfc gamma lgamma tgamma jn \
   getcwd poll pclose popen fdopen select sleep stpcpy \
   strcspn strdup strndup strnlen strcasecmp stricmp strncasecmp strnicmp \
   sysinfo tcgetattr vfprintf doprnt uname usleep
@@ -542,20 +527,30 @@ AC_ARG_WITH(gd,dnl
 if test "$with_gd" != no; then
   PKG_CHECK_MODULES_NOFAIL(libgd, [gdlib])
   AC_PATH_PROG([GDLIB_CONFIG], [gdlib-config])
-  if test $pkg_failed == no && test -n "$GDLIB_CONFIG"; then
-    libgd_CPPFLAGS=`$GDLIB_CONFIG --cflags`
+
+  # If pkg-config did return libgd configuration then
+  # libgd_{CFLAGS,LDFLAGS,LIBS} is set
+  # If gdlib-config executable is found then GDLIB_CONFIG is set
+  if test $pkg_failed = no && test -n "$GDLIB_CONFIG"; then
+    # If pkg-config did succeed and we have gdlib-config then the later takes
+    # priority
+    libgd_CFLAGS=`$GDLIB_CONFIG --cflags`
     libgd_LDFLAGS=`$GDLIB_CONFIG --ldflags`
     libgd_LIBS=`$GDLIB_CONFIG --libs`
   elif test -d "$with_gd"; then
-    libgd_CPPFLAGS="-I$with_gd/include"
+    # pkg-config did NOT succeed, we do NOT have gdlib-config but user
+    # specified --with-gd=
+    libgd_CFLAGS="-I$with_gd/include"
     libgd_LDFLAGS="-L$with_gd/lib"
     libgd_LIBS="-ljpeg -lpng -lfreetype -lz"
   fi
 
+  # Verify that libgd works, but backup the previous compilation variables to
+  # be able to revert in the case that libgd is not functional
   _cppflags="$CPPFLAGS"
   _ldflags="$LDFLAGS"
   _libs="$LIBS"
-  CPPFLAGS="$CPPFLAGS $libgd_CPPFLAGS"
+  CPPFLAGS="$CPPFLAGS $libgd_CFLAGS"
   LDFLAGS="$LDFLAGS $libgd_LDFLAGS"
   LIBS="$LIBS $libgd_LIBS"
 
@@ -1146,7 +1141,7 @@ AC_MSG_RESULT([    fig, hpgl, metafont, metapost, pcl5, postscript,])
 AC_MSG_RESULT([    pict2e, pslatex, pstex, pstricks, svg, texdraw, tkcanvas])
 AC_MSG_RESULT([])
 
-if test "$with_bitmap_terminals" == yes; then
+if test "$with_bitmap_terminals" = yes; then
   AC_MSG_RESULT([  dot-matrix terminals: yes ( --without-bitmap-terminals to disable)])
 else
   AC_MSG_RESULT([  dot-matrix terminals: no (use --with-bitmap-terminals to enable)])
@@ -1155,7 +1150,7 @@ AC_MSG_RESULT([    epson, nec, okidata, tandy, and seiko dp414 printers])
 AC_MSG_RESULT([    hp500c, hpdj, hpljii, hppj, pbm, sixel, starc])
 AC_MSG_RESULT([])
 
-if test "$with_tektronix" == no; then
+if test "$with_tektronix" = no; then
   AC_MSG_RESULT([  tektronix terminal emulators: no ( --with-tektronix to enable)])
 else
   AC_MSG_RESULT([  tektronix terminal emulators: yes ( --without-tektronix to disable)])
@@ -1176,19 +1171,19 @@ else
   AC_MSG_RESULT([    ggi terminal:  no   (use --with-ggi to enable, requires libggi)])
 fi
 
-if test "$with_gpic" == yes; then
+if test "$with_gpic" = yes; then
   AC_MSG_RESULT([    gpic terminal: yes])
 else
   AC_MSG_RESULT([    gpic terminal: no   (use --with-gpic to enable)])
 fi
 
-if test "$with_tgif" == yes; then
+if test "$with_tgif" = yes; then
   AC_MSG_RESULT([    tgif terminal: yes])
 else
   AC_MSG_RESULT([    tgif terminal: no   (use --with-tgif to enable)])
 fi
 
-if test "$with_mif" == yes; then
+if test "$with_mif" = yes; then
   AC_MSG_RESULT([    mif terminal (FrameMaker 3): yes])
 else
   AC_MSG_RESULT([    mif terminal (FrameMaker 3): no   (use --with-mif to enable)])
@@ -1361,12 +1356,6 @@ if test "$have_external_functions" = yes; then
   AC_MSG_RESULT([  plugin support for loading external functions: yes ])
 else
   AC_MSG_RESULT([  plugin support for loading external functions: no ])
-fi
-
-if test "$with_kpsexpand" = yes; then
-  AC_MSG_RESULT([  Use TeX kpsexpand to search for fonts: yes])
-else
-  AC_MSG_RESULT([  Use TeX kpsexpand to search for fonts: no (use --with-kpsexpand to enable)])
 fi
 
 dnl if test "$enable_backwards_compatibility" = yes; then

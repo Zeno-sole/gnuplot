@@ -551,9 +551,9 @@ DUMB_vector(unsigned int arg_x, unsigned int arg_y)
 	}
 	dumb_set_pixel(dumb_x, dumb_y, pen1);
 	for (delta = 1; delta < ABS(y - dumb_y); delta++) {
-	    dumb_set_pixel(dumb_x  + (int) ((double) (x - dumb_x) *
-					    delta / ABS(y - dumb_y) + 0.5),
-			   dumb_y + delta * sign(y - dumb_y), pen);
+	    dumb_set_pixel(
+		dumb_x  + (int)round((double) (x - dumb_x) * delta / ABS(y - dumb_y)),
+		dumb_y + delta * sign(y - dumb_y), pen);
 	}
 	dumb_set_pixel(x, y, pen1);
     } else if (ABS(x - dumb_x) > ABS(y - dumb_y)) {
@@ -580,8 +580,7 @@ DUMB_vector(unsigned int arg_x, unsigned int arg_y)
 	dumb_set_pixel(dumb_x, dumb_y, pen1);
 	for (delta = 1; delta < ABS(x - dumb_x); delta++)
 	    dumb_set_pixel(dumb_x + delta * sign(x - dumb_x),
-			   dumb_y +
-			   (int) ((double) (y - dumb_y) * delta / ABS(x - dumb_x) + 0.5),
+			   dumb_y + (int)round((double) (y - dumb_y) * delta / ABS(x - dumb_x)),
 			   pen);
 	dumb_set_pixel(x, y, pen1);
     } else {
@@ -772,15 +771,19 @@ ENHdumb_FLUSH()
 {
     char *str = enhanced_text;	/* The fragment to print */
     int x = dumb_x;		/* The current position  */
-    int y = dumb_y + (int)ENHdumb_base;
+    int y = dumb_y;
     int i, len;
 
     if (ENHdumb_opened_string) {
 	*enhanced_cur_text = '\0';
 	len = gp_strlen(str);
 
-	/* print the string fragment, perhaps invisibly */
 	/* NB: base expresses offset from current y pos */
+	i = ENHdumb_base;
+	cliptorange(i, -1, 1);
+	y += i;
+
+	/* print the string fragment, perhaps invisibly */
 	if (ENHdumb_show && y < dumb_ymax) {
 #ifdef DUMB_UTF8
 	    for (i = 0; i < len && x < dumb_xmax; i++, x++) {
@@ -821,7 +824,7 @@ ENHdumb_put_text(unsigned int x, unsigned int y, const char *str)
 	return;
     }
 
-    length = estimate_strlen(str);
+    length = estimate_strlen(str, NULL);
     if (x + length > dumb_xmax)
 	x = GPMAX(0, dumb_xmax - length);
     if (y > dumb_ymax)

@@ -1004,7 +1004,7 @@ gen_tics(struct axis *this, tic_callback callback)
      */
     if (def->def.user) {
 	struct ticmark *mark = def->def.user;
-	double uncertain = (this->max - this->min) / 10;
+	double uncertain = (nonlinear(this)) ? 0 : (this->max - this->min) / 10;
 	double internal_min = this->min - SIGNIF * uncertain;
 	double internal_max = this->max + SIGNIF * uncertain;
 
@@ -1689,15 +1689,15 @@ double
 get_num_or_time(struct axis *axis)
 {
     double value = 0;
+    char *ss;
 
     if ((axis != NULL)
-    &&  (axis->datatype == DT_TIMEDATE) && isstringvalue(c_token)) {
+    &&  (axis->datatype == DT_TIMEDATE)
+    &&  (ss = try_to_get_string())) {
 	struct tm tm;
 	double usec;
-	char *ss;
-	if ((ss = try_to_get_string()))
-	    if (gstrptime(ss, timefmt, &tm,&usec, &value) == DT_TIMEDATE)
-		value = (double) gtimegm(&tm) + usec;
+	if (gstrptime(ss, timefmt, &tm,&usec, &value) == DT_TIMEDATE)
+	    value = (double) gtimegm(&tm) + usec;
 	free(ss);
     } else {
 	value = real_expression();
@@ -2181,7 +2181,7 @@ char *c, *cfmt;
     for (c = cfmt = gp_strdup(format); *c; ) {
 	if (*c++ == '%') {
 	    while (*c && !strchr("DdMmSsEN%",*c)) {
-		if (!isdigit(*c) && !isspace(*c) && !ispunct(*c))
+		if (!isdigit((unsigned char)*c) && !isspace((unsigned char)*c) && !ispunct((unsigned char)*c))
 			int_error(NO_CARET,"unrecognized format: \"%s\"",format);
 		c++;
 	    }
@@ -2484,6 +2484,10 @@ void
 extend_primary_ticrange(AXIS *axis)
 {
     AXIS *primary = axis->linked_to_primary;
+    TBOOLEAN autoextend_min = (axis->autoscale & AUTOSCALE_MIN)
+	&& !(axis->autoscale & AUTOSCALE_FIXMIN);
+    TBOOLEAN autoextend_max = (axis->autoscale & AUTOSCALE_MAX)
+	&& !(axis->autoscale & AUTOSCALE_FIXMAX);
 
     if (axis->ticdef.logscaling) {
 	/* This can happen on "refresh" if the axis was unused */
@@ -2491,13 +2495,13 @@ extend_primary_ticrange(AXIS *axis)
 	    return;
 
 	/* NB: "zero" is the minimum non-zero value from "set zero" */
-	if ((primary->autoscale & AUTOSCALE_MIN)
-	||  fabs(primary->min - floor(primary->min)) < zero) {
+	if (autoextend_min
+	||  (fabs(primary->min - floor(primary->min)) < zero)) {
 	    primary->min = floor(primary->min);
 	    axis->min = eval_link_function(axis, primary->min);
 	}
-	if ((primary->autoscale & AUTOSCALE_MAX)
-	||  fabs(primary->max - ceil(primary->max)) < zero) {
+	if (autoextend_max
+	||  (fabs(primary->max - ceil(primary->max)) < zero)) {
 	    primary->max = ceil(primary->max);
 	    axis->max = eval_link_function(axis, primary->max);
 	}
@@ -2537,6 +2541,20 @@ update_secondary_axis_range(struct axis *primary)
        secondary->max = eval_link_function(secondary, primary->max);
        secondary->data_min = eval_link_function(secondary, primary->data_min);
        secondary->data_max = eval_link_function(secondary, primary->data_max);
+    }
+}
+
+/*
+ * range-extend autoscaled log axis
+ */
+void
+extend_autoscaled_log_axis(AXIS *primary)
+{
+    if (primary->log) {
+	extend_primary_ticrange(primary);
+	axis_invert_if_requested(primary);
+	check_log_limits(primary, primary->min, primary->max);
+	update_primary_axis_range(primary);
     }
 }
 

@@ -374,6 +374,9 @@ get_data(struct curve_points *current_plot)
 	    variable_color = TRUE;
 	if (current_plot->lp_properties.l_type == LT_COLORFROMCOLUMN)
 	    variable_color = TRUE;
+	if ((current_plot->plot_style == VECTOR || current_plot->plot_style == ARROWS)
+	&&  (current_plot->arrow_properties.tag == AS_VARIABLE))
+	    variable_color = TRUE;
 	if (current_plot->plot_smooth != SMOOTH_NONE
 	&&  current_plot->plot_smooth != SMOOTH_ZSORT) {
 	    /* FIXME:  It would be possible to support smooth cspline lc palette */
@@ -458,10 +461,10 @@ get_data(struct curve_points *current_plot)
 	    df_axis[2] = df_axis[3] = df_axis[1];
 	break;
 
-    case VECTOR:	/* x, y, dx, dy, variable color or arrow style */
-    case ARROWS:	/* x, y, len, ang, variable color or arrow style */
+    case VECTOR:	/* x, y, dx, dy, variable arrow style and/or variable color */
+    case ARROWS:	/* x, y, len, ang, variable arrow style and/or variable color */
 	min_cols = 4;
-	max_cols = 5;
+	max_cols = 6;
 	break;
 
     case XERRORLINES:
@@ -477,7 +480,7 @@ get_data(struct curve_points *current_plot)
     case YERRORLINES:
     case YERRORBARS:
 	min_cols = 2;
-	max_cols = 5;
+	max_cols = 7;
 	if (df_no_use_specs >= 4)
 	    /* HBB 20060427: signal 3rd and 4th column are absolute y
 	     * data --- needed so time/date parsing works */
@@ -578,8 +581,9 @@ get_data(struct curve_points *current_plot)
 	break;
     case SMOOTH_ZSORT:
 	min_cols = 3;
-	if (current_plot->plot_style != POINTSTYLE)
-	    int_error(NO_CARET, "'smooth zsort' only possible in plots 'with points'");
+	if (current_plot->plot_style != POINTSTYLE
+	&&  current_plot->plot_style != LINESPOINTS)
+	    int_error(NO_CARET, "'smooth zsort' only supported for point plots");
 	break;
     case SMOOTH_ACSPLINES:
 	max_cols = 3;
@@ -602,7 +606,7 @@ get_data(struct curve_points *current_plot)
     }
 
     if (df_no_use_specs > max_cols)
-	int_error(NO_CARET, "Too many using specs for this style");
+	int_warn(NO_CARET, "more using specs than expected for this style");
 
     if (df_no_use_specs > 0 && df_no_use_specs < min_cols)
 	int_error(NO_CARET, "Not enough columns for this style");
@@ -738,6 +742,9 @@ get_data(struct curve_points *current_plot)
 	    case VECTOR:
 	    case ARROWS:
 			    if (j < 5) int_error(NO_CARET,errmsg);
+			    /* j can be 5 if the variable styles have constant color */
+			    if (j == 5 && current_plot->arrow_properties.tag == AS_VARIABLE)
+				v[j++] = 0;
 			    break;
 	    case LABELPOINTS:
 	    case BOXERROR:
@@ -824,6 +831,8 @@ get_data(struct curve_points *current_plot)
 	    coordval var_char = 0;
 	    if (current_plot->plot_smooth == SMOOTH_ZSORT)
 		weight = v[var++];
+	    if (var_ps == PTSZ_VARIABLE)
+		var_ps = v[var++];
 	    if (var_pt == PT_VARIABLE) {
 		if (isnan(v[var]) && df_tokens[var]) {
 		    safe_strncpy( (char *)(&var_char), df_tokens[var], sizeof(coordval));
@@ -831,8 +840,6 @@ get_data(struct curve_points *current_plot)
 		}
 		var_pt = v[var++];
 	    }
-	    if (var_ps == PTSZ_VARIABLE)
-		var_ps = v[var++];
 	    if (var > j)
 		int_error(NO_CARET, "Not enough using specs");
 	    if (var_pt < 0)
@@ -854,10 +861,10 @@ get_data(struct curve_points *current_plot)
 
 	    if (current_plot->labels->tag == VARIABLE_ROTATE_LABEL_TAG)
 		var_rotation = v[var++];
-	    if (var_pt == PT_VARIABLE)
-		var_pt = v[var++];
 	    if (var_ps == PTSZ_VARIABLE)
 		var_ps = v[var++];
+	    if (var_pt == PT_VARIABLE)
+		var_pt = v[var++] - 1;
 	    if (var > j)
 		int_error(NO_CARET, "Not enough using specs");
 
@@ -913,12 +920,48 @@ get_data(struct curve_points *current_plot)
 	}
 
 	case YERRORLINES:
-	case YERRORBARS:
 	{   /* x y ydelta   or    x y ylow yhigh */
 	    coordval ylow  = (j > 3) ? v[2] : v[1] - v[2];
 	    coordval yhigh = (j > 3) ? v[3] : v[1] + v[2];
 	    store2d_point(current_plot, i++, v[0], v[1],
 			v[0], v[0], ylow, yhigh, -1.0);
+	    break;
+	}
+
+	case YERRORBARS:
+	{   /* NB: assumes CRD_PTSIZE == xlow CRD_PTTYPE == xhigh CRD_PTCHAR == ylow
+		   lc variable, if present, was already extracted and j reduced by 1
+	     */
+	    /* x y ydelta {lc variable} */
+	    if (j == 3) {
+		coordval ylow  = v[1] - v[2];
+		coordval yhigh = v[1] + v[2];
+		store2d_point(current_plot, i++, v[0], v[1],
+			v[0], v[0], ylow, yhigh, -1.0);
+
+	    /* x y ylow yhigh {var_ps} {var_pt} {lc variable} */
+	    } else {
+		int var = 4; /* column number for next variable spec */
+		coordval ylow  = v[2];
+		coordval yhigh = v[3];
+		coordval var_pt = current_plot->lp_properties.p_type;
+		coordval var_ps = current_plot->lp_properties.p_size;
+
+		if (var_ps == PTSZ_VARIABLE) {
+		    if (var >= j)
+			int_error(NO_CARET, "Not enough using specs");
+		    var_ps = v[var++];
+		}
+		if (var_pt == PT_VARIABLE) {
+		    if (var >= j)
+			int_error(NO_CARET, "Not enough using specs");
+		    var_pt = v[var++];
+		}
+		if (!(var_pt > 0)) /* Catches CRD_PTCHAR (NaN) also */
+		    var_pt = 0;
+		store2d_point(current_plot, i++, v[0], v[1],
+					    var_ps, var_pt, ylow, yhigh, -1.0);
+	    }
 	    break;
 	}
 
@@ -1048,25 +1091,24 @@ get_data(struct curve_points *current_plot)
 	}
 
 	case VECTOR:
-	{   /* 4 columns:	x y xdelta ydelta [arrowstyle variable] */
+	{   /* 	x y xdelta ydelta [arrowstyle variable] */
 	    coordval xlow  = v[0];
 	    coordval xhigh = v[0] + v[2];
 	    coordval ylow  = v[1];
 	    coordval yhigh = v[1] + v[3];
-	    coordval arrowstyle = (j == 5) ? v[4] : 0.0;
-
+	    coordval arrowstyle = (j >= 5) ? v[4] : 0.0;
 	    store2d_point(current_plot, i++, v[0], v[1],
 			  xlow, xhigh, ylow, yhigh, arrowstyle);
 	    break;
 	}
 
 	case ARROWS:
-	{   /* 4 columns:	x y len ang [arrowstyle variable] */
+	{   /* 	x y length angle [arrowstyle variable] */
 	    coordval xlow  = v[0];
 	    coordval ylow  = v[1];
 	    coordval len = v[2];
 	    coordval ang = v[3];
-	    coordval arrowstyle = (j == 5) ? v[4] : 0.0;
+	    coordval arrowstyle = (j >= 5) ? v[4] : 0.0;
 	    store2d_point(current_plot, i++, v[0], v[1],
 			  xlow, len, ylow, ang, arrowstyle);
 	    break;
@@ -1345,6 +1387,14 @@ store2d_point(
 	cp->xhigh = xhigh;
 	cp->ylow = ylow;
 	cp->yhigh = yhigh;
+	break;
+    case YERRORBARS:		/* auto-scale ylow yhigh */
+	cp->xlow = xlow;
+	cp->xhigh = xhigh;
+	STORE_AND_UPDATE_RANGE(cp->ylow, ylow, dummy_type, current_plot->y_axis,
+				current_plot->noautoscale, cp->ylow = -VERYLARGE);
+	STORE_AND_UPDATE_RANGE(cp->yhigh, yhigh, dummy_type, current_plot->y_axis,
+				current_plot->noautoscale, cp->yhigh = -VERYLARGE);
 	break;
     case BOXES:			/* auto-scale to xlow xhigh */
     case BOXPLOT:		/* auto-scale to xlow xhigh, factor is already in z */
@@ -1659,11 +1709,12 @@ histogram_range_fiddling(struct curve_points *plot)
 		}
 		if (axis_array[FIRST_X_AXIS].autoscale & AUTOSCALE_MAX) {
 		    /* FIXME - why did we increment p_count on UNDEFINED points? */
-		    while (plot->points[plot->p_count-1].type == UNDEFINED) {
+		    while (plot->p_count > 0
+			&& plot->points[plot->p_count-1].type == UNDEFINED) {
 			plot->p_count--;
-			if (!plot->p_count)
-			    int_error(NO_CARET,"All points in histogram UNDEFINED");
 		    }
+		    if (plot->p_count == 0)
+			int_error(NO_CARET,"No valid points in histogram");
 		    xhigh = plot->points[plot->p_count-1].x;
 		    xhigh += plot->histogram->start + 1.0;
 		    if (axis_array[FIRST_X_AXIS].max < xhigh)
@@ -1865,7 +1916,6 @@ store_label(
 	    tl->lp_properties.pm3d_color = lptmp.pm3d_color;
 	}
     }
-    
 
     /* Check for null string (no label) */
     if (!string)
@@ -1894,7 +1944,7 @@ store_label(
     }
 
     /* Strip double quote from both ends */
-    if (string[0] == '"' && string[textlen-1] == '"')
+    if (string[0] == '"' && textlen > 1 && string[textlen-1] == '"')
 	textlen -= 2, string++;
 
     tl->text = gp_alloc(textlen+1,"labelpoint text");
@@ -1942,6 +1992,7 @@ eval_plots()
 
     int nbins = 0;
     double binlow = 0, binhigh = 0, binwidth = 0;
+    int binopt = 0;
 
     /* Histogram bookkeeping */
     double newhist_start = 0.0;
@@ -2048,7 +2099,7 @@ eval_plots()
 		fs.border_color = default_fillstyle.border_color;
 		parse_fillstyle(&fs);
 
-		} while (c_token != previous_token);
+	    } while (c_token != previous_token);
 
 	    newhist_pattern = fs.fillpattern;
 	    if (!equals(c_token,","))
@@ -2165,6 +2216,9 @@ eval_plots()
 		else
 		    this_plot->sample_var2 = add_udv_by_name(c_dummy_var[1]);
 
+		if (this_plot->sample_var->udv_value.type == ARRAY)
+		    int_error(NO_CARET, "name conflict: dummy variable is an array");
+
 		/* Save prior value of sample variables so we can restore them later */
 		original_value_sample_var = this_plot->sample_var->udv_value;
 		original_value_sample_var2 = this_plot->sample_var2->udv_value;
@@ -2250,6 +2304,21 @@ eval_plots()
 			c_token++;
 			binwidth = real_expression();
 		    }
+		    binopt = 0;
+		    if (almost_equals(c_token, "binval$ue")) {
+			c_token++;
+			if (equals(c_token++, "=")) {
+			    if (equals(c_token, "avg"))
+				binopt = 1;
+			    else if (equals(c_token, "sum"))
+				binopt = 0;
+			    else
+				int_error(c_token, "expecting binvalue={sum|avg}");
+			    c_token++;
+			} else {
+			    int_error(c_token-2, "expecting binvalue={sum|avg}");
+			}
+		    }
 		    continue;
 		}
 
@@ -2290,7 +2359,6 @@ eval_plots()
 			break;
 		    case SMOOTH_ZSORT:
 			this_plot->plot_smooth = SMOOTH_ZSORT;
-			this_plot->plot_style = POINTSTYLE;
 			break;
 		    case SMOOTH_NONE:
 		    default:
@@ -2364,7 +2432,8 @@ eval_plots()
 			int_error(c_token, "\"with\" allowed only after parametric function fully specified");
 		    this_plot->plot_style = get_style();
 
-		    if (this_plot->plot_style == FILLEDCURVES) {
+		    if (this_plot->plot_style == FILLEDCURVES
+		    ||  this_plot->plot_style == FILLSTEPS) {
 			/* read a possible option for 'with filledcurves' */
 			get_filledcurves_style_options(&this_plot->filledcurves_options);
 		    }
@@ -2911,7 +2980,7 @@ eval_plots()
 
 		/* If we are to bin the data, do that first */
 		if (this_plot->plot_smooth == SMOOTH_BINS) {
-		    make_bins(this_plot, nbins, binlow, binhigh, binwidth);
+		    make_bins(this_plot, nbins, binlow, binhigh, binwidth, binopt);
 		}
 
 		/* Restore auto-scaling prior to smoothing operation */
@@ -3459,7 +3528,11 @@ eval_plots()
 	if (axis_array[FIRST_X_AXIS].max == -VERYLARGE ||
 	    axis_array[FIRST_X_AXIS].min == VERYLARGE)
 	    int_error(NO_CARET, "all points undefined!");
-	axis_check_range(FIRST_X_AXIS);
+	if (axis_array[FIRST_X_AXIS].log) {
+	    update_primary_axis_range(&axis_array[FIRST_X_AXIS]);
+	    extend_autoscaled_log_axis(&axis_array[FIRST_X_AXIS]);
+	} else
+	    axis_check_range(FIRST_X_AXIS);
     } else {
 	assert(uses_axis[SECOND_X_AXIS]);
     }
@@ -3467,7 +3540,11 @@ eval_plots()
 	if (axis_array[SECOND_X_AXIS].max == -VERYLARGE ||
 	    axis_array[SECOND_X_AXIS].min == VERYLARGE)
 	    int_error(NO_CARET, "all points undefined!");
-	axis_check_range(SECOND_X_AXIS);
+	if (axis_array[SECOND_X_AXIS].log) {
+	    update_primary_axis_range(&axis_array[SECOND_X_AXIS]);
+	    extend_autoscaled_log_axis(&axis_array[SECOND_X_AXIS]);
+	} else
+	    axis_check_range(SECOND_X_AXIS);
     } else {
 	assert(uses_axis[FIRST_X_AXIS]);
     }
@@ -3487,6 +3564,7 @@ eval_plots()
     } else if (uses_axis[FIRST_Y_AXIS] && nonlinear(&axis_array[FIRST_Y_AXIS])) {
 	axis_checked_extend_empty_range(FIRST_Y_AXIS, "all points y value undefined!");
 	update_primary_axis_range(&axis_array[FIRST_Y_AXIS]);
+	extend_autoscaled_log_axis(&axis_array[FIRST_Y_AXIS]);
     } else if (uses_axis[FIRST_Y_AXIS]) {
 	axis_checked_extend_empty_range(FIRST_Y_AXIS, "all points y value undefined!");
 	axis_check_range(FIRST_Y_AXIS);
@@ -3494,6 +3572,7 @@ eval_plots()
     if (uses_axis[SECOND_Y_AXIS] && axis_array[SECOND_Y_AXIS].linked_to_primary) {
 	axis_checked_extend_empty_range(SECOND_Y_AXIS, "all points y2 value undefined!");
 	update_primary_axis_range(&axis_array[SECOND_Y_AXIS]);
+	extend_autoscaled_log_axis(&axis_array[SECOND_Y_AXIS]);
     } else if (uses_axis[SECOND_Y_AXIS]) {
 	axis_checked_extend_empty_range(SECOND_Y_AXIS, "all points y2 value undefined!");
 	axis_check_range(SECOND_Y_AXIS);
@@ -3726,6 +3805,16 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 		char *skip = try_to_get_string();
 		free(skip);
 
+	    /* In the very common case of a string constant, use it as-is. */
+	    /* This guarantees that the title is only entered in the key once per
+	     * data file rather than once per data set within the file.
+	     */
+	    } else if (isstring(c_token) && !equals(c_token+1,".")) {
+		free_at(df_plot_title_at);
+		df_plot_title_at = NULL;
+		free(this_plot->title);
+		this_plot->title = try_to_get_string();
+
 	    /* Create an action table that can generate the title later */
 	    } else { 
 		free_at(df_plot_title_at);
@@ -3791,6 +3880,14 @@ parse_plot_title(struct curve_points *this_plot, char *xtitle, char *ytitle, TBO
 
 }
 
+/*
+ * If a plot component title (key entry) was provided as a string expression
+ * rather than a simple string constant, we saved the expression to evaluate
+ * after the corresponding data has been input. This routine is called once
+ * for each data set in the input data stream, which would potentially generate
+ * a separate key entry for each data set.  We can short-circuit this by
+ * clearing the saved string expression after generating the first title.
+ */
 void
 reevaluate_plot_title(struct curve_points *this_plot)
 {
@@ -3800,14 +3897,23 @@ reevaluate_plot_title(struct curve_points *this_plot)
 	evaluate_inside_using = TRUE;
 	evaluate_at(df_plot_title_at, &a);
 	evaluate_inside_using = FALSE;
-	if (a.type == STRING) {
+	if (!undefined && a.type == STRING) {
 	    free(this_plot->title);
 	    this_plot->title = a.v.string_val;
+
 	    /* Special case where the "title" is used as a tic label */
 	    if (this_plot->plot_style == HISTOGRAMS
 	    &&  histogram_opts.type == HT_STACKED_IN_TOWERS) {
 		double xpos = this_plot->histogram_sequence + this_plot->histogram->start;
 		add_tic_user(&axis_array[FIRST_X_AXIS], this_plot->title, xpos, -1);
+	    }
+
+	    /* FIXME:  good or bad to suppress all but the first generated title
+	     *         for a file containing multiple data sets?
+	     */
+	    else {
+		free_at(df_plot_title_at);
+		df_plot_title_at = NULL;
 	    }
 	}
     }
